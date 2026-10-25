@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   FileText,
@@ -12,6 +12,9 @@ import {
   LifeBuoy,
   Sun,
   Moon,
+  Zap,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
@@ -28,26 +31,19 @@ interface NavItem {
   id: NavPage;
   label: string;
   icon: React.ElementType;
-  /** Orange pill for Escalations; none on ordinary items. */
   badgeColor?: 'orange' | 'grey';
   badgeHelp?: string;
   getBadge?: (ctx: ReturnType<typeof useApp>) => number;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'ov',  label: 'Overview',           icon: LayoutDashboard },
-  { id: 'ap',  label: 'Applications',       icon: FileText,        badgeColor: 'grey',  badgeHelp: METRIC_HELP.openApplications,   getBadge: ctx => openApplications(ctx.apps) },
-  { id: 'evc', label: 'EVC Queue',          icon: Users,           badgeColor: 'grey',  badgeHelp: METRIC_HELP.evcItems,           getBadge: ctx => evcItems(ctx.evcs) },
-  { id: 'un',  label: 'Undertakings',       icon: ClipboardCheck,  badgeColor: 'grey',  badgeHelp: METRIC_HELP.undertakingsAtRisk, getBadge: ctx => undertakingsAtRisk(ctx.ul) },
-  { id: 'dc',  label: 'Lease & Documents',  icon: FileSignature,   badgeColor: 'grey',  badgeHelp: METRIC_HELP.docsExpiring,       getBadge: ctx => docsExpiring(ctx.dl) },
-  { id: 'es',  label: 'Escalations',        icon: Bell,            badgeColor: 'orange', badgeHelp: METRIC_HELP.escalations,       getBadge: ctx => escalationsCount(ctx.urgencyItems) },
-  { id: 'lg',  label: 'Audit Trail',        icon: ScrollText },
-];
-
-const OTHER_ITEMS: { label: string; icon: React.ElementType; onClick?: () => void }[] = [
-  { label: 'APH Rules',   icon: SlidersHorizontal, onClick: undefined }, // wired below
-  { label: 'Settings',    icon: Settings },
-  { label: 'Help Center', icon: LifeBuoy },
+  { id: 'ov',  label: 'Overview',          icon: LayoutDashboard },
+  { id: 'ap',  label: 'Applications',      icon: FileText,       badgeColor: 'grey',   badgeHelp: METRIC_HELP.openApplications,   getBadge: ctx => openApplications(ctx.apps) },
+  { id: 'evc', label: 'EVC Queue',         icon: Users,          badgeColor: 'grey',   badgeHelp: METRIC_HELP.evcItems,           getBadge: ctx => evcItems(ctx.evcs) },
+  { id: 'un',  label: 'Undertakings',      icon: ClipboardCheck, badgeColor: 'grey',   badgeHelp: METRIC_HELP.undertakingsAtRisk, getBadge: ctx => undertakingsAtRisk(ctx.ul) },
+  { id: 'dc',  label: 'Lease & Documents', icon: FileSignature,  badgeColor: 'grey',   badgeHelp: METRIC_HELP.docsExpiring,       getBadge: ctx => docsExpiring(ctx.dl) },
+  { id: 'es',  label: 'Escalations',       icon: Bell,           badgeColor: 'orange', badgeHelp: METRIC_HELP.escalations,        getBadge: ctx => escalationsCount(ctx.urgencyItems) },
+  { id: 'lg',  label: 'Audit Trail',       icon: ScrollText },
 ];
 
 interface SidebarProps {
@@ -55,15 +51,46 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   mobileOpen: boolean;
   onMobileClose: () => void;
+  reducedMotion: boolean;
+  onToggleMotion: () => void;
 }
 
-export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMobileClose }: SidebarProps) {
+export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMobileClose, reducedMotion, onToggleMotion }: SidebarProps) {
   const ctx = useApp();
   const { page, setPage, theme, setTheme } = ctx;
+
+  // Track nav items to position the sliding active indicator
+  const navRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [pillStyle, setPillStyle] = useState<React.CSSProperties>({ top: 0, opacity: 0 });
+  const activeIdx = NAV_ITEMS.findIndex(i => i.id === page);
+
+  useEffect(() => {
+    const el = navRefs.current[activeIdx];
+    if (!el) return;
+    const parent = el.parentElement;
+    if (!parent) return;
+    const parentRect = parent.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+    setPillStyle({
+      top: rect.top - parentRect.top,
+      height: rect.height,
+      opacity: 1,
+    });
+  }, [activeIdx, collapsed]);
 
   const handleNav = (id: NavPage) => {
     setPage(id);
     onMobileClose();
+  };
+
+  // Theme toggle with view-transition if available
+  const handleTheme = (next: Theme) => {
+    if ('startViewTransition' in document && !reducedMotion) {
+      (document as unknown as { startViewTransition: (cb: () => void) => void })
+        .startViewTransition(() => setTheme(next));
+    } else {
+      setTheme(next);
+    }
   };
 
   return (
@@ -76,6 +103,7 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMobileClose
       <nav
         className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}
         aria-label="Primary navigation"
+        style={{ transition: `width var(--dur-slow) var(--ease)` }}
       >
         {/* Logo */}
         <div className="sidebar-logo">
@@ -86,9 +114,19 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMobileClose
           </div>
         </div>
 
-        {/* Main nav */}
-        <div className="sidebar-nav">
-          {NAV_ITEMS.map(item => {
+        {/* Main nav with sliding active indicator */}
+        <div className="sidebar-nav" style={{ position: 'relative' }}>
+          {/* Sliding pill */}
+          <div
+            className="sidebar-active-pill"
+            style={{
+              ...pillStyle,
+              transition: reducedMotion ? 'none' : `top var(--dur) var(--ease), height var(--dur) var(--ease), opacity var(--dur-fast) var(--ease)`,
+            }}
+            aria-hidden="true"
+          />
+
+          {NAV_ITEMS.map((item, idx) => {
             const Icon = item.icon;
             const badge = item.getBadge ? item.getBadge(ctx) : 0;
             const isActive = page === item.id;
@@ -96,11 +134,13 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMobileClose
             return (
               <button
                 key={item.id}
+                ref={el => { navRefs.current[idx] = el; }}
                 className={`sidebar-item ${isActive ? 'active' : ''} ${collapsed ? 'collapsed-item' : ''}`}
                 onClick={() => handleNav(item.id)}
                 aria-label={`${item.label}${badge > 0 ? ` (${badge})` : ''}`}
                 aria-current={isActive ? 'page' : undefined}
                 title={collapsed ? item.label : undefined}
+                style={{ position: 'relative', zIndex: 1 }}
               >
                 <Icon aria-hidden="true" />
                 <span className="sidebar-item-label">{item.label}</span>
@@ -121,7 +161,11 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMobileClose
         {/* OTHERS */}
         <div className="sidebar-others">
           <div className="sidebar-group-label" aria-hidden="true">Other</div>
-          {OTHER_ITEMS.map(item => {
+          {[
+            { label: 'APH Rules',   icon: SlidersHorizontal },
+            { label: 'Settings',    icon: Settings },
+            { label: 'Help Center', icon: LifeBuoy },
+          ].map(item => {
             const Icon = item.icon;
             return (
               <button
@@ -147,20 +191,20 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMobileClose
             style={{ width: 'calc(100% - 12px)' }}
           >
             {collapsed
-              ? <SlidersHorizontal size={16} aria-hidden="true" />
-              : <><SlidersHorizontal size={16} aria-hidden="true" /><span className="sidebar-item-label">Collapse</span></>
+              ? <ChevronRight size={16} aria-hidden="true" />
+              : <><ChevronLeft size={16} aria-hidden="true" /><span className="sidebar-item-label">Collapse</span></>
             }
           </button>
           <div className="sidebar-demo">Prototype - demo data</div>
         </div>
 
-        {/* APPEARANCE switch */}
+        {/* APPEARANCE + REDUCE MOTION */}
         <div className="sidebar-appearance">
           <div className="sidebar-group-label" aria-hidden="true">Appearance</div>
           <div className="appearance-switch" role="group" aria-label="Colour appearance">
             <button
               className={`appearance-seg ${theme === 'light' ? 'active' : ''}`}
-              onClick={() => setTheme('light' as Theme)}
+              onClick={() => handleTheme('light')}
               aria-pressed={theme === 'light'}
               aria-label="Light appearance"
             >
@@ -168,13 +212,28 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMobileClose
             </button>
             <button
               className={`appearance-seg ${theme === 'dark' ? 'active' : ''}`}
-              onClick={() => setTheme('dark' as Theme)}
+              onClick={() => handleTheme('dark')}
               aria-pressed={theme === 'dark'}
               aria-label="Dark appearance"
             >
               <Moon size={13} aria-hidden="true" /> Dark
             </button>
           </div>
+
+          {/* Reduce motion toggle */}
+          <button
+            className={`sidebar-item other-item ${collapsed ? 'collapsed-item' : ''}`}
+            onClick={onToggleMotion}
+            aria-pressed={reducedMotion}
+            aria-label={reducedMotion ? 'Reduced motion on — click to enable animations' : 'Enable reduced motion'}
+            title={collapsed ? 'Reduce motion' : undefined}
+            style={{ marginTop: 4 }}
+          >
+            <Zap size={15} aria-hidden="true" style={{ opacity: reducedMotion ? 0.4 : 1 }} />
+            <span className="sidebar-item-label" style={{ opacity: reducedMotion ? 0.6 : 1 }}>
+              {reducedMotion ? 'Motion: off' : 'Reduce motion'}
+            </span>
+          </button>
         </div>
       </nav>
     </>

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Bell, Menu, Search } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { Bell, Menu, Search, Command } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 const PAGE_TITLES: Record<string, string> = {
@@ -29,9 +29,10 @@ interface TopBarProps {
   safeguardDismissed: boolean;
   onDismissSafeguard: () => void;
   onOpenMenu: () => void;
+  onOpenCmd: () => void;
 }
 
-export function TopBar({ safeguardDismissed, onDismissSafeguard, onOpenMenu }: TopBarProps) {
+export function TopBar({ safeguardDismissed, onDismissSafeguard, onOpenMenu, onOpenCmd }: TopBarProps) {
   const {
     role, setRole,
     page, setPage,
@@ -45,10 +46,36 @@ export function TopBar({ safeguardDismissed, onDismissSafeguard, onOpenMenu }: T
     try { return localStorage.getItem('aicte-bell-read') !== '1'; } catch { return true; }
   });
 
-  // "/" shortcut focuses search
+  // "Updated Xs ago" ticker
+  const [updatedSec, setUpdatedSec] = useState(0);
+  const updatedRef = useRef(Date.now());
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setUpdatedSec(Math.floor((Date.now() - updatedRef.current) / 1000));
+    }, 10_000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const updatedLabel = updatedSec < 30
+    ? 'Just now'
+    : updatedSec < 120
+    ? `${updatedSec}s ago`
+    : `${Math.floor(updatedSec / 60)}m ago`;
+
+  // Debounced search (150ms)
+  const [rawSearch, setRawSearch] = useState(searchQuery);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSearch = useCallback((val: string) => {
+    setRawSearch(val);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => setSearchQuery(val), 150);
+  }, [setSearchQuery]);
+
+  // "/" focuses search, Cmd+K opens palette
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+      const tag = (document.activeElement as HTMLElement)?.tagName;
+      if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
         e.preventDefault();
         searchRef.current?.focus();
       }
@@ -83,31 +110,33 @@ export function TopBar({ safeguardDismissed, onDismissSafeguard, onOpenMenu }: T
 
         <div className="topbar-spacer" />
 
-        {/* Search */}
-        <div className="topbar-search">
+        {/* Search — click or "/" to focus */}
+        <div className="topbar-search" role="search">
           <Search className="topbar-search-icon" aria-hidden="true" />
           <input
             ref={searchRef}
             type="search"
             placeholder="Search here..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            value={rawSearch}
+            onChange={e => handleSearch(e.target.value)}
             aria-label="Search institutions and applications"
           />
-          <kbd aria-hidden="true">⌘K</kbd>
+          <kbd aria-hidden="true" onClick={onOpenCmd} style={{ cursor: 'pointer' }}>
+            <Command size={10} style={{ display: 'inline' }} /> K
+          </kbd>
         </div>
 
         <div className="topbar-controls">
           {/* Live / Mock badge */}
           <span
             className={`mode-pill ${isLive ? 'live' : 'mock'}`}
-            title={isLive ? 'Connected to FastAPI backend' : 'Running on local mock data'}
+            title={isLive ? `Connected to FastAPI backend · ${updatedLabel}` : 'Running on local mock data'}
           >
-            <span className="mode-pill-dot" aria-hidden="true" />
-            {isLive ? 'Live API' : 'Mock mode'}
+            <span className={`mode-pill-dot ${isLive ? 'pulse' : ''}`} aria-hidden="true" />
+            {isLive ? `Live · ${updatedLabel}` : 'Mock'}
           </span>
 
-          {/* Role selector (shows scope) */}
+          {/* Role selector */}
           <select
             className="role-select"
             value={role}
@@ -136,7 +165,7 @@ export function TopBar({ safeguardDismissed, onDismissSafeguard, onOpenMenu }: T
               : `${role.toLowerCase()} region`}
           </span>
 
-          {/* Bell (dropdown arrives with the alerts step; navigates to Escalations for now) */}
+          {/* Bell */}
           <button
             className="topbar-bell"
             onClick={() => setPage('es')}
@@ -144,10 +173,10 @@ export function TopBar({ safeguardDismissed, onDismissSafeguard, onOpenMenu }: T
             title="Alerts"
           >
             <Bell size={17} aria-hidden="true" />
-            {hasUnread && <span className="topbar-bell-dot" aria-hidden="true" />}
+            {hasUnread && <span className={`topbar-bell-dot ${isLive ? 'pulse' : ''}`} aria-hidden="true" />}
           </button>
 
-          {/* Avatar with initials */}
+          {/* Avatar */}
           <div
             className="topbar-avatar"
             title={ROLE_DESCRIPTIONS[role]}

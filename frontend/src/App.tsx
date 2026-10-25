@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Sidebar } from './layout/Sidebar';
 import { TopBar } from './layout/TopBar';
@@ -11,6 +11,29 @@ import { EscalationsPage } from './pages/EscalationsPage';
 import { AuditTrailPage } from './pages/AuditTrailPage';
 import { AphRulesModal } from './components/AphRulesModal';
 import { ToastContainer } from './components/Toast';
+import { CommandPalette } from './components/CommandPalette';
+
+/** Sync reduced-motion preference to document root attribute */
+function useReducedMotion() {
+  const [reduced, setReduced] = useState<boolean>(() => {
+    try { return localStorage.getItem('aicte-reduced-motion') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const sys = mq.matches;
+    const stored = reduced;
+    const active = stored || sys;
+    document.documentElement.dataset.reducedMotion = active ? '1' : '0';
+  }, [reduced]);
+  const toggle = () => {
+    setReduced(v => {
+      const next = !v;
+      try { localStorage.setItem('aicte-reduced-motion', next ? '1' : '0'); } catch { /* */ }
+      return next;
+    });
+  };
+  return { reduced, toggle };
+}
 
 function AppShell() {
   const {
@@ -25,6 +48,30 @@ function AppShell() {
   const [safeguardDismissed, setSafeguardDismissed] = useState(
     () => sessionStorage.getItem('safeguard-dismissed') === '1'
   );
+  const [cmdOpen, setCmdOpen] = useState(false);
+  const { reduced, toggle: toggleMotion } = useReducedMotion();
+
+  // Page-transition key so the wrapper re-mounts on navigation
+  const [pageKey, setPageKey] = useState(page);
+  const prevPage = useRef(page);
+  useEffect(() => {
+    if (page !== prevPage.current) {
+      prevPage.current = page;
+      setPageKey(page);
+    }
+  }, [page]);
+
+  // Cmd/Ctrl+K opens command palette
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCmdOpen(o => !o);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const dismissSafeguard = () => {
     setSafeguardDismissed(true);
@@ -46,12 +93,23 @@ function AppShell() {
 
   return (
     <div className="app-shell">
+      {/* aria-live for screen reader announcements */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        id="aria-announcer"
+        style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap' }}
+      />
+
       {/* Sidebar */}
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(c => !c)}
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
+        reducedMotion={reduced}
+        onToggleMotion={toggleMotion}
       />
 
       {/* Main area */}
@@ -61,11 +119,14 @@ function AppShell() {
           safeguardDismissed={safeguardDismissed}
           onDismissSafeguard={dismissSafeguard}
           onOpenMenu={() => setMobileOpen(true)}
+          onOpenCmd={() => setCmdOpen(true)}
         />
 
-        {/* Page content */}
+        {/* Page content — key changes trigger fade+slide-up */}
         <main className="page-scroll" id="main-content" tabIndex={-1}>
-          {renderPage()}
+          <div key={pageKey} className="page-enter">
+            {renderPage()}
+          </div>
         </main>
       </div>
 
@@ -80,6 +141,9 @@ function AppShell() {
 
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {/* Command palette */}
+      {cmdOpen && <CommandPalette onClose={() => setCmdOpen(false)} />}
     </div>
   );
 }
