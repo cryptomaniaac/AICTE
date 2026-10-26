@@ -55,10 +55,13 @@ export async function fetchApplications(roleOrParams?: RoleOrParams, regionParam
   if (typeof roleOrParams === 'object' && roleOrParams !== null) {
     if (roleOrParams.role) url.searchParams.append('role', roleOrParams.role);
     if (roleOrParams.region) url.searchParams.append('region', roleOrParams.region);
-  } else {
-    if (roleOrParams) url.searchParams.append('role', roleOrParams);
+  } else if (typeof roleOrParams === 'string') {
+    url.searchParams.append('role', roleOrParams);
     if (regionParam) url.searchParams.append('region', regionParam);
+  } else if (regionParam) {
+    url.searchParams.append('region', regionParam);
   }
+
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error('Failed to fetch applications');
   return res.json();
@@ -102,9 +105,10 @@ export async function fetchUndertakings(roleOrParams?: RoleOrParams): Promise<Un
   if (typeof roleOrParams === 'object' && roleOrParams !== null) {
     if (roleOrParams.role) url.searchParams.append('role', roleOrParams.role);
     if (roleOrParams.region) url.searchParams.append('region', roleOrParams.region);
-  } else if (roleOrParams) {
+  } else if (typeof roleOrParams === 'string') {
     url.searchParams.append('role', roleOrParams);
   }
+
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error('Failed to fetch undertakings');
   return res.json();
@@ -161,9 +165,10 @@ export async function fetchLeasesAndDocuments(roleOrParams?: RoleOrParams): Prom
   if (typeof roleOrParams === 'object' && roleOrParams !== null) {
     if (roleOrParams.role) url.searchParams.append('role', roleOrParams.role);
     if (roleOrParams.region) url.searchParams.append('region', roleOrParams.region);
-  } else if (roleOrParams) {
+  } else if (typeof roleOrParams === 'string') {
     url.searchParams.append('role', roleOrParams);
   }
+
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error('Failed to fetch documents');
   return res.json();
