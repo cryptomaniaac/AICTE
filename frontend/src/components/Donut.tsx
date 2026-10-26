@@ -17,11 +17,13 @@ interface DonutProps {
   onHover?: (key: string | null) => void;
 }
 
-const SIZE = 216;
-const STROKE = 24;
-const R = (SIZE - STROKE) / 2;
+const VIEW_SIZE = 240;
+const CX = VIEW_SIZE / 2; // 120
+const CY = VIEW_SIZE / 2; // 120
+const STROKE = 22;
+const R = 88; // 88 + 11 = 99px, leaving 21px padding inside 240px canvas
 const CIRC = 2 * Math.PI * R;
-const GAP = 8; // px between rounded-cap segments
+const GAP = 7; // px between rounded-cap segments
 
 /**
  * Hand-written SVG donut gauge: thick ring, rounded caps, donut shades.
@@ -35,23 +37,24 @@ export function Donut({ slices, total, active, onSelect, highlightedKey, onHover
     <div className="donut" onMouseLeave={() => onHover?.(null)}>
       <div className="donut-ring">
         <svg
-          width={SIZE}
-          height={SIZE}
-          viewBox={`0 0 ${SIZE} ${SIZE}`}
+          width="100%"
+          height="100%"
+          viewBox={`0 0 ${VIEW_SIZE} ${VIEW_SIZE}`}
           role="img"
           aria-label={`Applications by stage. Total ${total} open applications.`}
+          style={{ overflow: 'visible' }}
         >
           {/* Track */}
           <circle
-            cx={SIZE / 2}
-            cy={SIZE / 2}
+            cx={CX}
+            cy={CY}
             r={R}
             fill="none"
             stroke="var(--border)"
             strokeWidth={STROKE}
           />
 
-          <g transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}>
+          <g transform={`rotate(-90 ${CX} ${CY})`}>
             {visible.map(slice => {
               const share = slice.value / Math.max(1, total);
               const len = share * CIRC;
@@ -60,8 +63,8 @@ export function Donut({ slices, total, active, onSelect, highlightedKey, onHover
               const segment = (
                 <circle
                   key={slice.key}
-                  cx={SIZE / 2}
-                  cy={SIZE / 2}
+                  cx={CX}
+                  cy={CY}
                   r={R}
                   fill="none"
                   stroke={slice.color}
@@ -71,7 +74,10 @@ export function Donut({ slices, total, active, onSelect, highlightedKey, onHover
                   strokeDashoffset={-offset}
                   opacity={active && active !== slice.key ? 0.35 : 1}
                   className={isRing ? 'donut-slice-ring' : ''}
-                  style={{ transition: 'opacity .15s, stroke-width .15s', cursor: 'pointer' }}
+                  style={{
+                    transition: 'opacity 0.2s ease, stroke-width 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                    cursor: 'pointer',
+                  }}
                   onClick={() => onSelect(slice.key)}
                   onMouseEnter={() => onHover?.(slice.key)}
                 >
