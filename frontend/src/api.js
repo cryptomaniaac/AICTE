@@ -54,6 +54,13 @@ export async function revertApplication(id, reason = 'Deficiency', actor = 'Bure
   });
 }
 
+export async function rescheduleEVC(appId, evcDays, actor = 'Bureau officer') {
+  return request(`/applications/${appId}/reschedule-evc`, {
+    method: 'POST',
+    body: JSON.stringify({ evc_days: evcDays, actor }),
+  });
+}
+
 // ------------------- Undertakings API -------------------
 export async function getUndertakings(params = {}) {
   const query = new URLSearchParams();
@@ -77,12 +84,20 @@ export async function verifyUndertaking(id, actor = 'Bureau officer') {
   });
 }
 
+export async function batchActionUndertakings(itemIds, actionType, actor = 'Bureau officer') {
+  return request('/undertakings/batch-action', {
+    method: 'POST',
+    body: JSON.stringify({ item_ids: itemIds, action_type: actionType, actor }),
+  });
+}
+
 export async function actionUndertaking(id, actor = 'Bureau officer') {
   return request(`/undertakings/${id}/action`, {
     method: 'POST',
     body: JSON.stringify({ actor }),
   });
 }
+
 
 // ------------------- Leases & Documents API -------------------
 export async function getLeasesAndDocuments(params = {}) {

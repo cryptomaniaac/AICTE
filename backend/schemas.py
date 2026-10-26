@@ -40,8 +40,13 @@ class ApplicationRevertRequest(BaseModel):
     reason: str = Field(..., description="Deficiency, Clarification, or Further verification")
     actor: str = "Bureau officer"
 
+class RescheduleEVCRequest(BaseModel):
+    evc_days: int = Field(..., description="Target days until EVC inspection")
+    actor: str = "Bureau officer"
+
 # Backward compatibility alias
 ApplicationReturnRequest = ApplicationRevertRequest
+
 
 # ----------------- Undertaking Schemas -----------------
 class UndertakingBase(BaseModel):
@@ -68,6 +73,12 @@ class UndertakingUploadRequest(BaseModel):
 
 class UndertakingVerifyRequest(BaseModel):
     actor: str = "Bureau officer"
+
+class UndertakingBatchActionRequest(BaseModel):
+    item_ids: List[int] = Field(..., description="List of undertaking IDs to process")
+    action_type: str = Field(..., description="'upload' or 'verify'")
+    actor: str = "Bureau officer"
+
 
 # ----------------- Lease & Document Schemas -----------------
 class LeaseAndDocumentBase(BaseModel):

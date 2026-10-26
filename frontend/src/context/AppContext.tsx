@@ -589,25 +589,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [role, showToast]);
 
-  const handleRescheduleEVC = useCallback((appId: string, newDays: number) => {
+  const handleRescheduleEVC = useCallback(async (appId: string, newDays: number) => {
     const target = A.find(x => x.id === appId);
-    if (target) {
-      const oldDays = target.evc;
-      target.evc = newDays;
-      setA([...A]);
-      const desc = `${target.id} (${target.inst}): EVC rescheduled from ${oldDays}d to +${newDays}d`;
-      setLOG(prev => [{ t: new Date().toLocaleString(), who: roleName, x: desc }, ...prev]);
-      showToast('Inspection Rescheduled', `${target.id} moved to +${newDays}d (${target.inst})`, 'success', {
-        duration: 6000,
-        undoLabel: 'Undo',
-        onUndo: () => {
-          target.evc = oldDays;
-          setA([...A]);
-          showToast('Reschedule Reverted', `${target.id} restored to ${oldDays}d`, 'info');
-        },
-      });
+    if (!target) return;
+    const oldDays = target.evc;
+
+    // 1. Optimistic immediate update
+    target.evc = newDays;
+    setA([...A]);
+    const desc = `${target.id} (${target.inst}): EVC rescheduled from ${oldDays}d to +${newDays}d`;
+    setLOG(prev => [{ t: new Date().toLocaleString(), who: roleName, x: desc }, ...prev]);
+
+    showToast('Inspection Rescheduled', `${target.id} moved to +${newDays}d (${target.inst})`, 'success', {
+      duration: 6000,
+      undoLabel: 'Undo',
+      onUndo: async () => {
+        target.evc = oldDays;
+        setA([...A]);
+        showToast('Reschedule Reverted', `${target.id} restored to ${oldDays}d`, 'info');
+        if (isLive) {
+          try {
+            await api.rescheduleEVC(appId, oldDays, roleName);
+            await loadRef.current();
+          } catch (err) {
+            console.error('Failed to revert reschedule on server', err);
+          }
+        }
+      },
+    });
+
+    // 2. Persist to live backend/Supabase
+    if (isLive) {
+      try {
+        await api.rescheduleEVC(appId, newDays, roleName);
+        await loadRef.current();
+      } catch (err: any) {
+        // Rollback on failure
+        target.evc = oldDays;
+        setA([...A]);
+        showToast('Reschedule Failed', err?.message || 'Server error updating EVC schedule', 'error');
+      }
     }
-  }, [A, roleName, showToast]);
+  }, [A, isLive, roleName, showToast]);
+
 
   const simEventIndexRef = useRef(0);
 

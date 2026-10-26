@@ -86,6 +86,17 @@ export async function revertApplication(appId: string, reason: string = 'Deficie
 }
 export const returnApplication = revertApplication;
 
+export async function rescheduleEVC(appId: string, evcDays: number, actor: string = 'Bureau officer'): Promise<Application> {
+  const res = await fetch(`${API_BASE}/api/applications/${appId}/reschedule-evc`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ evc_days: evcDays, actor }),
+  });
+  if (!res.ok) throw new Error('Failed to reschedule EVC inspection');
+  return res.json();
+}
+
+
 export async function fetchUndertakings(roleOrParams?: RoleOrParams): Promise<Undertaking[]> {
   const url = new URL(`${API_BASE}/api/undertakings`);
   if (typeof roleOrParams === 'object' && roleOrParams !== null) {
@@ -119,6 +130,21 @@ export async function verifyUndertaking(id: number, actor: string = 'Bureau offi
   if (!res.ok) throw new Error('Failed to verify undertaking');
   return res.json();
 }
+
+export async function batchActionUndertakings(
+  itemIds: number[],
+  actionType: 'upload' | 'verify',
+  actor: string = 'Bureau officer'
+): Promise<{ status: string; processed_count: number }> {
+  const res = await fetch(`${API_BASE}/api/undertakings/batch-action`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ item_ids: itemIds, action_type: actionType, actor }),
+  });
+  if (!res.ok) throw new Error('Failed to process batch undertakings');
+  return res.json();
+}
+
 
 export async function actionUndertaking(id: number, actor: string = 'Bureau officer'): Promise<Undertaking> {
   const res = await fetch(`${API_BASE}/api/undertakings/${id}/action`, {
@@ -244,10 +270,12 @@ export default {
   advanceApplication,
   revertApplication,
   returnApplication,
+  rescheduleEVC,
   getUndertakings,
   fetchUndertakings,
   uploadUndertaking,
   verifyUndertaking,
+  batchActionUndertakings,
   actionUndertaking,
   getLeasesAndDocuments,
   fetchLeasesAndDocuments,
@@ -269,4 +297,5 @@ export default {
   updateAphRules,
   downloadPendencyReportCsv,
 };
+
 

@@ -337,9 +337,39 @@ def return_application_alias(
 ):
     return revert_application(app_id=app_id, payload=payload, db=db)
 
+@app.post("/api/applications/{app_id}/reschedule-evc", response_model=schemas.ApplicationResponse)
+def reschedule_evc(
+    app_id: str,
+    payload: schemas.RescheduleEVCRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Reschedule an EVC inspection timeline status for an application,
+    persisting the new days to the database and logging it in audit_logs.
+    """
+    app_obj = db.query(Application).options(joinedload(Application.institution)).filter(Application.id == app_id).first()
+    if not app_obj:
+        raise HTTPException(status_code=404, detail=f"Application {app_id} not found")
+
+    old_days = app_obj.evc_timeline_status
+    app_obj.evc_timeline_status = payload.evc_days
+
+    event = f"{app_obj.id} ({app_obj.institution.name}): EVC inspection rescheduled from {old_days}d to +{payload.evc_days}d"
+    log = AuditLog(
+        timestamp=format_timestamp(),
+        actor=payload.actor,
+        event_description=event
+    )
+    db.add(log)
+    db.commit()
+    record_live_event(event)
+    db.refresh(app_obj)
+    return app_obj
+
 # =========================================================================
 # 2. Compliance & Document Endpoints (/api/undertakings & /api/documents)
 # =========================================================================
+
 
 # --- Undertakings ---
 @app.get("/api/undertakings", response_model=List[schemas.UndertakingResponse])
@@ -434,7 +464,37 @@ def action_undertaking(
     else:
         return verify_undertaking(item_id, schemas.UndertakingVerifyRequest(actor=payload.actor if payload else "Bureau officer"), db)
 
+@app.post("/api/undertakings/batch-action")
+def batch_action_undertakings(
+    payload: schemas.UndertakingBatchActionRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Process multiple undertakings in a single request ('upload' or 'verify').
+    """
+    processed = 0
+    items = db.query(Undertaking).options(joinedload(Undertaking.institution)).filter(Undertaking.id.in_(payload.item_ids)).all()
+
+    for item in items:
+        if payload.action_type == "upload" and item.status == 0:
+            item.status = 1
+            event = f"{item.institution.name}: {item.condition_text} submitted by institution (Batch)"
+            db.add(AuditLog(timestamp=format_timestamp(), actor=payload.actor, event_description=event))
+            processed += 1
+        elif payload.action_type == "verify" and item.status < 2:
+            item.status = 2
+            event = f"{item.institution.name}: {item.condition_text} verified by officer (Batch)"
+            db.add(AuditLog(timestamp=format_timestamp(), actor=payload.actor, event_description=event))
+            processed += 1
+
+    if processed > 0:
+        db.commit()
+        record_live_event(f"Batch processed {processed} undertaking(s)")
+
+    return {"status": "success", "processed_count": processed}
+
 # --- Documents & Leases ---
+
 @app.get("/api/documents", response_model=List[schemas.LeaseAndDocumentResponse])
 @app.get("/api/leases-and-documents", response_model=List[schemas.LeaseAndDocumentResponse])
 def get_documents(

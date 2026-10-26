@@ -40,10 +40,11 @@ export const ThreeBackdrop: React.FC<ThreeBackdropProps> = ({ theme, overdueCoun
 
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     } catch {
       return;
     }
+
 
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
@@ -165,14 +166,20 @@ export const ThreeBackdrop: React.FC<ThreeBackdropProps> = ({ theme, overdueCoun
     const rings: THREE.Mesh[] = [];
     [1.2, 1.8, 2.4].forEach((r, j) => {
       const ringMesh = new THREE.Mesh(
-        new THREE.TorusGeometry(r, 0.012, 8, 96),
-        new THREE.MeshBasicMaterial({ color: cur.dots, transparent: true, opacity: 0.55 })
+        new THREE.TorusGeometry(r, 0.008, 8, 96),
+        new THREE.MeshBasicMaterial({
+          color: cur.dots,
+          transparent: true,
+          opacity: theme === 'daylight' ? 0.2 : 0.42,
+          depthWrite: false,
+        })
       );
       ringMesh.position.set(3.4, 0, -2 - j * 0.6);
       ringMesh.rotation.x = 1.1;
       scene.add(ringMesh);
       rings.push(ringMesh);
     });
+
 
     const motion = { p: 0, v: 0, mx: 0, my: 0 };
     let lastY = window.scrollY;

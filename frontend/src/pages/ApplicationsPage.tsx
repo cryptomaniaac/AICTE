@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   X, RotateCcw, Info, List, Kanban,
-  ChevronLeft, ChevronRight, Plus,
+  ChevronLeft, ChevronRight, Plus, Download, Search,
 } from 'lucide-react';
+
 import { useApp, getStage, alertLevel, formatDays, ROUTES } from '../context/AppContext';
 import { StatusChip, LevelChip, StageChips } from '../components/shared/StatusChip';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
@@ -347,9 +348,10 @@ export function ApplicationsPage() {
     apps, getDaysLeftForApp, handleAdvance, handleReturn, actionLoading, LOG, searchQuery,
     pendingAppsFilter, setPendingAppsFilter,
     pendingDrawerAppId, setPendingDrawerAppId,
-    showToast,
+    showToast, handleExportCsv,
   } = useApp();
 
+  const [localSearch, setLocalSearch] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'board'>(() => {
     try {
       return (localStorage.getItem('aicte_apps_view') as any) || 'list';
@@ -361,6 +363,7 @@ export function ApplicationsPage() {
   const [filters, setFilters] = useState<Filters>({
     region: '', stage: '', route: '', overdueOnly: false,
   });
+
   const [selectedApp, setSelectedApp] = useState<AppRecord | null>(null);
   const [selectedAppIdx, setSelectedAppIdx] = useState<number>(0);
   const [sortBy, setSortBy] = useState<'age' | 'id' | 'inst'>('age');
@@ -408,15 +411,17 @@ export function ApplicationsPage() {
 
   const filtered = useMemo(() => {
     let list = [...apps];
+    const activeSearch = localSearch || searchQuery;
 
     // Search filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+    if (activeSearch.trim()) {
+      const q = activeSearch.toLowerCase();
       list = list.filter(a =>
         a.inst.toLowerCase().includes(q) ||
         a.id.toLowerCase().includes(q)
       );
     }
+
 
     if (filters.region) list = list.filter(a => a.reg === filters.region);
     if (filters.stage)  list = list.filter(a => getStage(a) === filters.stage);
@@ -523,80 +528,129 @@ export function ApplicationsPage() {
           <p>Automatic routing · {apps.length} total · {filtered.length} shown</p>
         </div>
 
-        {/* View Mode Segmented Switch (List | Board) */}
-        <div style={{ display: 'inline-flex', background: 'var(--surface-2)', padding: 3, borderRadius: 8, border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <button
-            className={`btn btn-xs ${viewMode === 'list' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => toggleViewMode('list')}
-            style={{ borderRadius: 6, gap: 5 }}
-            aria-pressed={viewMode === 'list'}
+            className="btn btn-secondary btn-sm"
+            onClick={handleExportCsv}
+            disabled={actionLoading === 'export-csv'}
+            title="Download CSV export of pendency summary"
+            style={{ gap: 5 }}
           >
-            <List size={13} /> List
+            <Download size={13} aria-hidden="true" />
+            {actionLoading === 'export-csv' ? 'Exporting…' : 'Export Pendency CSV'}
           </button>
-          <button
-            className={`btn btn-xs ${viewMode === 'board' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => toggleViewMode('board')}
-            style={{ borderRadius: 6, gap: 5 }}
-            aria-pressed={viewMode === 'board'}
-          >
-            <Kanban size={13} /> Board
-          </button>
+
+          {/* View Mode Segmented Switch (List | Board) */}
+          <div style={{ display: 'inline-flex', background: 'var(--surface-2)', padding: 3, borderRadius: 8, border: '1px solid var(--border)' }}>
+            <button
+              className={`btn btn-xs ${viewMode === 'list' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => toggleViewMode('list')}
+              style={{ borderRadius: 6, gap: 5 }}
+              aria-pressed={viewMode === 'list'}
+            >
+              <List size={13} /> List
+            </button>
+            <button
+              className={`btn btn-xs ${viewMode === 'board' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => toggleViewMode('board')}
+              style={{ borderRadius: 6, gap: 5 }}
+              aria-pressed={viewMode === 'board'}
+            >
+              <Kanban size={13} /> Board
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel" style={{ marginBottom: 14 }}>
+        {/* Filters */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <select
+              className="filter-custom-select"
+              value={filters.region}
+              onChange={e => setFilters(f => ({ ...f, region: e.target.value }))}
+              aria-label="Filter by region"
+            >
+              <option value="">All Regions</option>
+              {['North', 'South', 'East', 'West'].map(r => (
+                <option key={r} value={r}>{r} Region</option>
+              ))}
+            </select>
+
+            <select
+              className="filter-custom-select"
+              value={filters.stage}
+              onChange={e => setFilters(f => ({ ...f, stage: e.target.value }))}
+              aria-label="Filter by stage"
+            >
+              <option value="">All Stages</option>
+              {['Scrutiny', 'EVC', 'SAC/SHC'].map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+
+            <select
+              className="filter-custom-select"
+              value={filters.route}
+              onChange={e => setFilters(f => ({ ...f, route: e.target.value }))}
+              aria-label="Filter by route type"
+            >
+              <option value="">All Routes</option>
+              {['S', 'SE', 'ES', 'E', 'SES'].map(r => (
+                <option key={r} value={r}>Route {r}</option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              className={`severity-pill ${filters.overdueOnly ? 'active' : ''}`}
+              onClick={() => setFilters(f => ({ ...f, overdueOnly: !f.overdueOnly }))}
+              style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <span>Overdue Only</span>
+            </button>
+
+            {(filters.region || filters.stage || filters.route || filters.overdueOnly || localSearch) && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs"
+                onClick={() => {
+                  setFilters({ region: '', stage: '', route: '', overdueOnly: false });
+                  setLocalSearch('');
+                }}
+                style={{ gap: 4 }}
+              >
+                <RotateCcw size={11} /> Reset
+              </button>
+            )}
+          </div>
+
+          <div className="filter-search-box" style={{ width: 240 }}>
+            <Search size={14} className="filter-search-icon" />
+            <input
+              type="text"
+              placeholder="Search ID or Institute…"
+              className="filter-search-input"
+              value={localSearch}
+              onChange={e => setLocalSearch(e.target.value)}
+            />
+            {localSearch && (
+              <button
+                type="button"
+                className="filter-search-clear"
+                onClick={() => setLocalSearch('')}
+                aria-label="Clear search"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       <div className="panel">
-        {/* Filters */}
-        <div className="filters-bar">
-          <select
-            className="form-select"
-            value={filters.region}
-            onChange={e => setFilters(f => ({ ...f, region: e.target.value }))}
-            aria-label="Filter by region"
-          >
-            <option value="">All regions</option>
-            {['North', 'South', 'East', 'West'].map(r => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-          <select
-            className="form-select"
-            value={filters.stage}
-            onChange={e => setFilters(f => ({ ...f, stage: e.target.value }))}
-            aria-label="Filter by stage"
-          >
-            <option value="">All stages</option>
-            {['Scrutiny', 'EVC', 'SAC/SHC'].map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <select
-            className="form-select"
-            value={filters.route}
-            onChange={e => setFilters(f => ({ ...f, route: e.target.value }))}
-            aria-label="Filter by route type"
-          >
-            <option value="">All routes</option>
-            {['S', 'SE', 'ES', 'E', 'SES'].map(r => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', color: 'var(--text-2)' }}>
-            <input
-              type="checkbox"
-              checked={filters.overdueOnly}
-              onChange={e => setFilters(f => ({ ...f, overdueOnly: e.target.checked }))}
-            />
-            Overdue only
-          </label>
-          {(filters.region || filters.stage || filters.route || filters.overdueOnly) && (
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => setFilters({ region: '', stage: '', route: '', overdueOnly: false })}
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
+
 
         {/* Content: List or Board */}
         {viewMode === 'board' ? (
