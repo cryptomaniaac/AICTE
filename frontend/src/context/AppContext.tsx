@@ -10,14 +10,6 @@ import React, {
 import api from '../api';
 // Single source of truth for stages/SLA/alert levels: lib/metrics.ts
 import { ROUTES, DEFAULT_SLA, getStage, getDaysLeft, alertLevel, formatDays } from '../lib/metrics';
-export {
-  ROUTES,
-  DEFAULT_SLA,
-  getStage,
-  getDaysLeft,
-  alertLevel,
-  formatDays,
-};
 import { getSimulatedDate, formatDemoDate } from '../lib/clock';
 import { parseRoute, appPageToPath } from '../router';
 import type {
@@ -30,6 +22,8 @@ import type {
   UrgencyItem,
   AphRulesConfig,
 } from '../types';
+
+export { ROUTES, DEFAULT_SLA, getStage, getDaysLeft, alertLevel, formatDays };
 
 export const STATUS_LABELS = ['Pending', 'Submitted', 'Verified'];
 
