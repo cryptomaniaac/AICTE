@@ -17,6 +17,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { navigateTo } from '../router';
 import {
   openApplications,
   evcItems,
@@ -116,11 +117,27 @@ export function Sidebar({
         aria-label="Primary navigation"
         style={{ transition: `width var(--dur-slow) var(--ease)` }}
       >
-        {/* Logo */}
-        <div className="sidebar-logo">
+        {/* Logo with Return to Home */}
+        <div
+          className="sidebar-logo clickable"
+          onClick={() => navigateTo('/', { transition: true })}
+          title="Return to Landing Page"
+          role="button"
+          tabIndex={0}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              navigateTo('/', { transition: true });
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="sidebar-logo-mark" aria-hidden="true">A</div>
           <div className="sidebar-logo-text">
-            <div style={{ fontSize: 13, lineHeight: 1.2, fontWeight: 700 }}>AICTE Monitor</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+              <span style={{ fontSize: 13, lineHeight: 1.2, fontWeight: 700 }}>AICTE Monitor</span>
+              <span className="sidebar-home-chip" title="Landing Page">Home ↗</span>
+            </div>
             <div className="sidebar-logo-sub">Approval &amp; Compliance</div>
           </div>
         </div>

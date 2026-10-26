@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import api from '../api';
 // Single source of truth for stages/SLA/alert levels: lib/metrics.ts
-import { getStage, getDaysLeft, alertLevel } from '../lib/metrics';
+import { ROUTES, DEFAULT_SLA, getStage, getDaysLeft, alertLevel, formatDays } from '../lib/metrics';
 export {
   ROUTES,
   DEFAULT_SLA,
@@ -17,8 +17,9 @@ export {
   getDaysLeft,
   alertLevel,
   formatDays,
-} from '../lib/metrics';
+};
 import { getSimulatedDate, formatDemoDate } from '../lib/clock';
+import { parseRoute, appPageToPath } from '../router';
 import type {
   Theme,
   NavPage,
@@ -219,9 +220,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light');
 
-  // ── Role & Page ────────────────────────────────────────────────────────────
+  // ── Role & Page (Router integrated) ─────────────────────────────────────────
+  const initialRoute = parseRoute(
+    typeof window !== 'undefined' ? window.location.pathname : '/',
+    typeof window !== 'undefined' ? window.location.hash : ''
+  );
   const [role, setRole] = useState('Bureau');
-  const [page, setPage] = useState<NavPage>('ov');
+  const [page, setPageState] = useState<NavPage>(initialRoute.appPage);
+
+  const setPage = useCallback((p: NavPage | ((prev: NavPage) => NavPage)) => {
+    setPageState(prev => {
+      const next = typeof p === 'function' ? p(prev) : p;
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/app')) {
+        const nextPath = appPageToPath(next);
+        if (window.location.pathname !== nextPath) {
+          window.history.pushState({}, '', nextPath + (window.location.hash || ''));
+          window.dispatchEvent(new Event('popstate'));
+        }
+      }
+      return next;
+    });
+  }, []);
 
   // ── Live mode ──────────────────────────────────────────────────────────────
   const [isLive, setIsLive] = useState(false);
@@ -231,7 +250,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Deep-links: filters / drawer target carried from other pages ───────────
   const [pendingAppsFilter, setPendingAppsFilter] = useState<AppsLinkFilter | null>(null);
-  const [pendingDrawerAppId, setPendingDrawerAppId] = useState<string | null>(null);
+  const [pendingDrawerAppId, setPendingDrawerAppIdState] = useState<string | null>(initialRoute.hashItem);
+
+  const setPendingDrawerAppId = useCallback((id: string | null) => {
+    setPendingDrawerAppIdState(id);
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/app')) {
+      if (id) {
+        window.history.replaceState({}, '', `${window.location.pathname}#/item/${encodeURIComponent(id)}`);
+      } else if (window.location.hash.startsWith('#/item/')) {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const handlePop = () => {
+      const parsed = parseRoute(window.location.pathname, window.location.hash);
+      if (parsed.isApp) {
+        setPageState(parsed.appPage);
+        if (parsed.hashItem) {
+          setPendingDrawerAppIdState(parsed.hashItem);
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePop);
+    window.addEventListener('hashchange', handlePop);
+    return () => {
+      window.removeEventListener('popstate', handlePop);
+      window.removeEventListener('hashchange', handlePop);
+    };
+  }, []);
 
   // ── Data ───────────────────────────────────────────────────────────────────
   const [A, setA] = useState<AppRecord[]>(INITIAL_A);

@@ -18,6 +18,8 @@ import {
   SettingsModal,
   HelpCenterModal,
 } from './components';
+import { useRoute } from './router';
+import { LandingPage } from './landing/LandingPage';
 
 /** Sync reduced-motion preference to document root attribute */
 function useReducedMotion() {
@@ -116,12 +118,16 @@ function AppShell() {
     return () => window.removeEventListener('keydown', handler);
   }, [setPage]);
 
-  // Check if first-time user for guided tour
+  // Check if first-time user for guided tour or triggered from landing page
   useEffect(() => {
     try {
+      const trigger = localStorage.getItem('aicte_trigger_tour');
       const seen = localStorage.getItem('aicte_tour_seen');
-      if (!seen) {
-        const timer = setTimeout(() => setTourOpen(true), 1200);
+      if (trigger === '1' || !seen) {
+        if (trigger === '1') {
+          localStorage.removeItem('aicte_trigger_tour');
+        }
+        const timer = setTimeout(() => setTourOpen(true), 1000);
         return () => clearTimeout(timer);
       }
     } catch {
@@ -241,10 +247,20 @@ function AppShell() {
   );
 }
 
+function RootRouter() {
+  const route = useRoute();
+
+  if (!route.isApp) {
+    return <LandingPage activeTab={route.landingTab} />;
+  }
+
+  return <AppShell />;
+}
+
 export function App() {
   return (
     <AppProvider>
-      <AppShell />
+      <RootRouter />
     </AppProvider>
   );
 }
