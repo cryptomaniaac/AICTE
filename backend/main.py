@@ -94,10 +94,70 @@ def root():
         "docs_url": "/docs"
     }
 
-@app.get("/health")
-@app.get("/api/health")
+# Real-time state synchronization
+LIVE_STATE = {
+    "version": 1,
+    "timestamp": format_timestamp(),
+    "last_event": "System initialized and monitoring active",
+    "status": "online"
+}
+
+def record_live_event(event_desc: str):
+    LIVE_STATE["version"] += 1
+    LIVE_STATE["timestamp"] = format_timestamp()
+    LIVE_STATE["last_event"] = event_desc
+
+@app.api_route("/health", methods=["GET", "HEAD"])
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 def health_check():
-    return {"status": "healthy", "timestamp": format_timestamp()}
+    return {
+        "status": "healthy",
+        "timestamp": format_timestamp(),
+        "version": LIVE_STATE["version"]
+    }
+
+@app.get("/api/live/status")
+def get_live_status(db: Session = Depends(get_db)):
+    """Lightweight real-time status and version indicator for smooth polling."""
+    return {
+        "status": "online",
+        "version": LIVE_STATE["version"],
+        "timestamp": LIVE_STATE["timestamp"],
+        "last_event": LIVE_STATE["last_event"],
+        "total_applications": db.query(Application).count(),
+    }
+
+@app.post("/api/triggers/simulated-event")
+def trigger_simulated_backend_event(db: Session = Depends(get_db)):
+    """Triggers an autonomous event cycle directly on the persistent database."""
+    import random
+    actions = ["evc_advance", "doc_upload", "sla_tick"]
+    choice = random.choice(actions)
+
+    if choice == "evc_advance":
+        app_obj = db.query(Application).options(joinedload(Application.institution)).filter(Application.route_type.in_(["SE", "SES", "ES"])).first()
+        if app_obj:
+            stages = ROUTE_STAGES.get(app_obj.route_type, [])
+            app_obj.current_stage_index = min(len(stages) - 1, app_obj.current_stage_index + 1)
+            event_text = f"Autonomous EVC Review: {app_obj.institution.name} ({app_obj.id}) advanced"
+            db.add(AuditLog(timestamp=format_timestamp(), actor="EVC Committee", event_description=event_text))
+            db.commit()
+            record_live_event(event_text)
+            return {"status": "success", "event": event_text, "version": LIVE_STATE["version"]}
+
+    elif choice == "doc_upload":
+        doc = db.query(LeaseAndDocument).options(joinedload(LeaseAndDocument.institution)).filter(LeaseAndDocument.status == 0).first()
+        if doc:
+            doc.status = 1
+            event_text = f"Portal Upload: {doc.institution.name} submitted {doc.document_type}"
+            db.add(AuditLog(timestamp=format_timestamp(), actor="Institution Portal", event_description=event_text))
+            db.commit()
+            record_live_event(event_text)
+            return {"status": "success", "event": event_text, "version": LIVE_STATE["version"]}
+
+    event_text = "Statutory background SLA verification cycle completed"
+    record_live_event(event_text)
+    return {"status": "success", "event": event_text, "version": LIVE_STATE["version"]}
 
 # ----------------- Institutions Endpoints -----------------
 @app.get("/api/institutions", response_model=List[schemas.InstitutionResponse])
@@ -227,6 +287,7 @@ def advance_application(
     )
     db.add(log)
     db.commit()
+    record_live_event(event)
     db.refresh(app_obj)
     return app_obj
 
@@ -263,6 +324,7 @@ def revert_application(
     )
     db.add(log)
     db.commit()
+    record_live_event(event)
     db.refresh(app_obj)
     return app_obj
 
@@ -324,6 +386,7 @@ def upload_undertaking(
     )
     db.add(log)
     db.commit()
+    record_live_event(event)
     db.refresh(item)
     return item
 
@@ -352,6 +415,7 @@ def verify_undertaking(
     )
     db.add(log)
     db.commit()
+    record_live_event(event)
     db.refresh(item)
     return item
 
@@ -417,6 +481,7 @@ def upload_document(
     )
     db.add(log)
     db.commit()
+    record_live_event(event)
     db.refresh(item)
     return item
 
@@ -453,6 +518,7 @@ def verify_document(
     )
     db.add(log)
     db.commit()
+    record_live_event(event)
     db.refresh(item)
     return item
 

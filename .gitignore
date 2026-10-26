@@ -51,10 +51,14 @@ frontend/.vite/
 
 # Database & local data
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 backend/aicte.db
 backend/aicte.db-journal
+backend/aicte.db-shm
+backend/aicte.db-wal
 
 # IDE & Editor files
 .vscode/*

@@ -386,28 +386,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { loadRef.current(); }, [role]);
 
-  // ── Actions ────────────────────────────────────────────────────────────────
+  // ── Actions with Optimistic UI Updates ─────────────────────────────────────
   const handleAdvance = useCallback(async (appId: string) => {
     setActionLoading(`adv-${appId}`);
     const target = A.find(x => x.id === appId);
     const prevStage = target ? (getStage(target) ?? 'Stage') : 'Stage';
+    const oldIndex = target ? target.i : 0;
+    const oldAge = target ? target.age : 0;
+
+    // 1. Optimistic immediate local update
+    if (target) {
+      target.i++;
+      target.age = 0;
+      const nextStage = getStage(target);
+      const desc = `${target.id}: ${prevStage} completed → ${nextStage ? `moved to ${nextStage}` : 'forwarded to competent authority'}`;
+      setLOG(prev => [{ t: new Date().toLocaleString(), who: roleName, x: desc }, ...prev]);
+      setA([...A]);
+    }
+    showToast('Stage Completed', `${appId} advanced from ${prevStage}`, 'success');
+
     try {
       if (isLive) {
         await api.advanceApplication(appId, roleName);
         await loadRef.current();
-      } else {
-        if (target) {
-          target.i++;
-          target.age = 0;
-          const nextStage = getStage(target);
-          const desc = `${target.id}: ${prevStage} completed → ${nextStage ? `moved to ${nextStage}` : 'forwarded to competent authority'}`;
-          setLOG(prev => [{ t: new Date().toLocaleString(), who: roleName, x: desc }, ...prev]);
-          setA([...A]);
-        }
       }
-      showToast('Stage Completed', `${appId} advanced from ${prevStage}`, 'success');
     } catch (err: any) {
-      showToast('Advance Failed', err?.message || 'Action failed', 'error');
+      // Rollback on failure
+      if (target) {
+        target.i = oldIndex;
+        target.age = oldAge;
+        setA([...A]);
+      }
+      showToast('Advance Failed', err?.message || 'Action failed on server', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -415,23 +425,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const handleReturn = useCallback(async (appId: string, reason: string) => {
     setActionLoading(`ret-${appId}`);
+    const o = A.find(x => x.id === appId);
+    const oldIndex = o ? o.i : 0;
+    const oldAge = o ? o.age : 0;
+
+    // 1. Optimistic immediate local update
+    if (o) {
+      o.i = Math.max(0, o.i - 1);
+      o.age = 0;
+      const desc = `${o.id}: returned to ${getStage(o)} · reason: ${reason}`;
+      setLOG(prev => [{ t: new Date().toLocaleString(), who: roleName, x: desc }, ...prev]);
+      setA([...A]);
+    }
+    showToast('Application Returned', `${appId} returned — ${reason}`, 'warn');
+
     try {
       if (isLive) {
         await api.revertApplication(appId, reason, roleName);
         await loadRef.current();
-      } else {
-        const o = A.find(x => x.id === appId);
-        if (o) {
-          o.i = Math.max(0, o.i - 1);
-          o.age = 0;
-          const desc = `${o.id}: returned to ${getStage(o)} · reason: ${reason}`;
-          setLOG(prev => [{ t: new Date().toLocaleString(), who: roleName, x: desc }, ...prev]);
-          setA([...A]);
-        }
       }
-      showToast('Application Returned', `${appId} returned — ${reason}`, 'warn');
     } catch (err: any) {
-      showToast('Return Failed', err?.message || 'Action failed', 'error');
+      // Rollback on failure
+      if (o) {
+        o.i = oldIndex;
+        o.age = oldAge;
+        setA([...A]);
+      }
+      showToast('Return Failed', err?.message || 'Action failed on server', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -440,27 +460,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const handleUndertakingAction = useCallback(async (idx: number, uItem: UndertakingRecord) => {
     setActionLoading(`un-${idx}`);
     const isUpload = uItem.s === 0;
+    const o = U[idx];
+    const prevStatus = o ? o.s : 0;
+
+    // 1. Optimistic immediate local update
+    if (o) {
+      o.s = isUpload ? 1 : 2;
+      const desc = `${o.inst}: ${o.t} ${o.s === 1 ? 'submitted' : 'verified'}`;
+      setLOG(prev => [{ t: new Date().toLocaleString(), who: roleName, x: desc }, ...prev]);
+      setU([...U]);
+    }
+    showToast(
+      isUpload ? 'Evidence Uploaded' : 'Undertaking Verified',
+      `${uItem.inst}: ${uItem.t}`,
+      'success',
+    );
+
     try {
       if (isLive && uItem.id) {
         if (isUpload) await api.uploadUndertaking(uItem.id, roleName);
-        else           await api.verifyUndertaking(uItem.id, roleName);
+        else          await api.verifyUndertaking(uItem.id, roleName);
         await loadRef.current();
-      } else {
-        const o = U[idx];
-        if (o) {
-          o.s++;
-          const desc = `${o.inst}: ${o.t} ${o.s === 1 ? 'submitted' : 'verified'}`;
-          setLOG(prev => [{ t: new Date().toLocaleString(), who: roleName, x: desc }, ...prev]);
-          setU([...U]);
-        }
       }
-      showToast(
-        isUpload ? 'Evidence Uploaded' : 'Undertaking Verified',
-        `${uItem.inst}: ${uItem.t}`,
-        'success',
-      );
     } catch (err: any) {
-      showToast('Action Failed', err?.message || 'Could not process undertaking', 'error');
+      // Rollback on failure
+      if (o) {
+        o.s = prevStatus;
+        setU([...U]);
+      }
+      showToast('Action Failed', err?.message || 'Could not process undertaking on server', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -469,28 +497,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const handleDocumentAction = useCallback(async (idx: number, dItem: DocumentRecord) => {
     setActionLoading(`dc-${idx}`);
     const isUpload = dItem.s === 0;
+    const o = D[idx];
+    const prevStatus = o ? o.s : 0;
+    const prevDays = o ? o.d : 0;
+
+    // 1. Optimistic immediate local update
+    if (o) {
+      o.s = isUpload ? 1 : 2;
+      if (!isUpload) {
+        o.d = o.d < 0 ? 365 : o.d + 365;
+      }
+      const desc = `${o.inst}: ${o.t} ${o.s === 1 ? 'submitted' : 'verified (+365d)'}`;
+      setLOG(prev => [{ t: new Date().toLocaleString(), who: roleName, x: desc }, ...prev]);
+      setD([...D]);
+    }
+    showToast(
+      isUpload ? 'Document Uploaded' : 'Document Verified & Renewed',
+      `${dItem.inst}: ${dItem.t}${!isUpload ? ' (+365 days)' : ''}`,
+      'success',
+    );
+
     try {
       if (isLive && dItem.id) {
         if (isUpload) await api.uploadDocument(dItem.id, roleName);
-        else           await api.verifyDocument(dItem.id, roleName);
+        else          await api.verifyDocument(dItem.id, roleName);
         await loadRef.current();
-      } else {
-        const o = D[idx];
-        if (o) {
-          o.s++;
-          if (o.s === 2) o.d = 365;
-          const desc = `${o.inst}: ${o.t} ${o.s === 1 ? 'submitted' : 'verified (+365d)'}`;
-          setLOG(prev => [{ t: new Date().toLocaleString(), who: roleName, x: desc }, ...prev]);
-          setD([...D]);
-        }
       }
-      showToast(
-        isUpload ? 'Document Uploaded' : 'Document Verified & Renewed',
-        `${dItem.inst}: ${dItem.t}${!isUpload ? ' (+365 days)' : ''}`,
-        'success',
-      );
     } catch (err: any) {
-      showToast('Action Failed', err?.message || 'Could not process document', 'error');
+      // Rollback on failure
+      if (o) {
+        o.s = prevStatus;
+        o.d = prevDays;
+        setD([...D]);
+      }
+      showToast('Action Failed', err?.message || 'Could not process document on server', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -656,14 +696,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => setRecentlyUpdatedId(null), 3500);
   }, [A, D, aphRules, timeTravelDays, showToast]);
 
-  // Periodic simulation timer in mock mode (every 28s)
+  // ── Periodic Live Sync & Heartbeat (every 6 seconds) ──────────────────────
+  const lastVersionRef = useRef<number>(1);
   useEffect(() => {
-    if (isLive || !simulationActive) return;
-    const interval = setInterval(() => {
-      triggerSimulatedEvent();
-    }, 28000);
+    let active = true;
+    const interval = setInterval(async () => {
+      if (!active) return;
+      try {
+        const status = await api.getLiveStatus();
+        if (!active) return;
+        setIsLive(true);
+        if (status.version !== lastVersionRef.current) {
+          lastVersionRef.current = status.version;
+          setLastUpdatedTimestamp(Date.now());
+          await loadRef.current();
+        }
+      } catch {
+        try {
+          const healthy = await api.checkHealth();
+          if (active) setIsLive(healthy);
+        } catch {
+          if (active) setIsLive(false);
+        }
+      }
+    }, 6000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // ── Periodic Simulation Timer (runs in both Mock and Live mode) ───────────
+  useEffect(() => {
+    if (!simulationActive) return;
+    const interval = setInterval(async () => {
+      if (isLive) {
+        try {
+          const res = await api.triggerSimulatedBackendEvent();
+          setLastUpdatedTimestamp(Date.now());
+          setBellUnreadCount(c => c + 1);
+          showToast('Live Regulatory Event', res.event, 'info');
+          await loadRef.current();
+        } catch {
+          triggerSimulatedEvent();
+        }
+      } else {
+        triggerSimulatedEvent();
+      }
+    }, 26000);
     return () => clearInterval(interval);
-  }, [isLive, simulationActive, triggerSimulatedEvent]);
+  }, [isLive, simulationActive, triggerSimulatedEvent, showToast]);
 
   // ── Time travel trigger ────────────────────────────────────────────────────
   const setTimeTravelDays = useCallback((days: number) => {

@@ -1,10 +1,9 @@
-// API Client configured for both local development and Vercel production
 const BASE_URL =
   import.meta.env?.VITE_API_URL
     ? `${import.meta.env.VITE_API_URL}/api`
-    : typeof window !== 'undefined' && !import.meta.env?.DEV
+    : typeof window !== 'undefined'
     ? `${window.location.origin}/api`
-    : 'http://localhost:8000/api';
+    : 'http://127.0.0.1:8000/api';
 
 /**
  * Helper to perform fetch requests with error handling

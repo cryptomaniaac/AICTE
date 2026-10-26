@@ -2,9 +2,9 @@ import type { Application, Undertaking, LeaseAndDocument, AuditLog, OverviewMetr
 
 const API_BASE =
   import.meta.env.VITE_API_URL ||
-  (typeof window !== 'undefined' && !import.meta.env.DEV
+  (typeof window !== 'undefined'
     ? window.location.origin
-    : 'http://localhost:8000');
+    : 'http://127.0.0.1:8000');
 
 export async function checkBackendHealth(): Promise<boolean> {
   try {
@@ -13,10 +13,31 @@ export async function checkBackendHealth(): Promise<boolean> {
     const fallback = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(3000) });
     return fallback.ok;
   } catch {
-    return false;
+    // If proxied path failed, try direct backend port as fallback
+    try {
+      const direct = await fetch('http://127.0.0.1:8000/api/health', { signal: AbortSignal.timeout(2000) });
+      return direct.ok;
+    } catch {
+      return false;
+    }
   }
 }
 export const checkHealth = checkBackendHealth;
+
+export async function getLiveStatus(): Promise<{ status: string; version: number; timestamp: string; last_event: string; total_applications: number }> {
+  const res = await fetch(`${API_BASE}/api/live/status`, { signal: AbortSignal.timeout(3000) });
+  if (!res.ok) throw new Error('Failed to fetch live status');
+  return res.json();
+}
+
+export async function triggerSimulatedBackendEvent(): Promise<{ status: string; event: string; version: number }> {
+  const res = await fetch(`${API_BASE}/api/triggers/simulated-event`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to trigger simulated event');
+  return res.json();
+}
 
 export async function fetchOverviewMetrics(role?: Role | string): Promise<OverviewMetrics> {
   const url = new URL(`${API_BASE}/api/overview-metrics`);
@@ -241,6 +262,8 @@ export default {
   fetchOverviewMetrics,
   checkHealth,
   checkBackendHealth,
+  getLiveStatus,
+  triggerSimulatedBackendEvent,
   resetDatabase,
   getAphRules,
   updateAphRules,
