@@ -2614,3 +2614,410 @@ tr:focus-within .row-actions {
 .all-clear h3 { font-size: 15px; font-weight: 600; color: var(--text); }
 .all-clear p  { font-size: 13px; color: var(--muted); line-height: 1.5; }
 
+/* ── Linked Views Highlighting ────────────────────────────── */
+.row-highlighted {
+  background: var(--primary-50) !important;
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+.row-dimmed {
+  opacity: 0.38 !important;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.heatmap-cell.cell-ring {
+  outline: 2.5px solid var(--primary);
+  outline-offset: 1px;
+  z-index: 5;
+  box-shadow: 0 0 8px var(--primary-100);
+}
+.donut-slice-ring {
+  stroke-width: 28px !important;
+  filter: drop-shadow(0 0 6px var(--primary));
+  transition: stroke-width var(--dur-fast) var(--ease);
+}
+
+/* ── Sticky Table Header Shadow ───────────────────────────── */
+thead.header-shadow th {
+  box-shadow: 0 4px 6px -2px rgba(0, 0, 0, 0.08);
+  transition: box-shadow var(--dur-fast) var(--ease);
+}
+
+/* ── Sticky Bulk Action Bar ───────────────────────────────── */
+.sticky-bulk-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7500;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg), 0 8px 30px rgba(0, 0, 0, 0.12);
+  border-radius: 99px;
+  padding: 8px 16px 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  animation: slideUp var(--dur) var(--ease) both;
+}
+.sticky-bulk-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.sticky-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Column Visibility Menu ──────────────────────────────── */
+.col-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 8px 10px;
+  min-width: 160px;
+  z-index: 500;
+  animation: scaleIn var(--dur-fast) var(--ease);
+}
+.col-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  user-select: none;
+}
+.col-menu-item:hover { background: var(--surface-2); color: var(--text); }
+
+/* ── Views Dropdown ───────────────────────────────────────── */
+.views-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  min-width: 190px;
+  z-index: 500;
+  animation: scaleIn var(--dur-fast) var(--ease);
+}
+
+/* ── Board (Kanban) View ──────────────────────────────────── */
+.board-container {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+@media (max-width: 880px) {
+  .board-container { grid-template-columns: 1fr; }
+}
+.board-column {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  min-height: 480px;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+.board-column.drag-over {
+  background: var(--primary-50);
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.board-col-header {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.board-col-count {
+  font-size: 11px;
+  background: var(--surface);
+  padding: 2px 7px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+}
+.board-cards-list {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  overflow-y: auto;
+}
+.board-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  cursor: grab;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), opacity var(--dur-fast);
+  user-select: none;
+}
+.board-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.board-card:active { cursor: grabbing; }
+.board-card.dragging {
+  opacity: 0.4;
+  transform: scale(0.96);
+}
+.board-card.shake {
+  animation: shake 400ms var(--ease);
+}
+.board-card.drop-snap {
+  animation: scaleIn var(--dur-fast) var(--ease);
+}
+
+/* ── Calendar Drag Reschedule ─────────────────────────────── */
+.cal-slot-drop-active {
+  background: var(--primary-50) !important;
+  outline: 2px dashed var(--primary);
+}
+
+/* ── Mobile Bottom Sheet (under 768px) ────────────────────── */
+@media (max-width: 768px) {
+  .drawer {
+    top: auto !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 85vh !important;
+    border-radius: 18px 18px 0 0 !important;
+    border-right: none !important;
+    border-top: 1px solid var(--border) !important;
+    animation: slideUpBottom 240ms var(--ease) !important;
+  }
+  .drawer-handle {
+    width: 36px;
+    height: 4px;
+    background: var(--border-hover);
+    border-radius: 2px;
+    margin: 8px auto 0;
+    cursor: grab;
+  }
+}
+@keyframes slideUpBottom {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* ── Guided Tour Spotlight ────────────────────────────────── */
+.tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: auto;
+}
+.tour-spotlight-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(1.5px);
+  transition: all var(--dur-slow) var(--ease);
+}
+.tour-card {
+  position: fixed;
+  z-index: 10001;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
+  width: 320px;
+  padding: 18px 20px;
+  animation: scaleIn var(--dur) var(--ease);
+}
+.tour-step-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 6px;
+}
+.tour-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.tour-desc {
+  font-size: 12.5px;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+.tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ── Shortcuts Modal ──────────────────────────────────────── */
+.shortcuts-dialog {
+  max-width: 520px;
+  width: 90vw;
+}
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.shortcut-row:last-child { border-bottom: none; }
+kbd.shortcut-key {
+  background: var(--surface-2);
+  border: 1px solid var(--border-hover);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  color: var(--text);
+}
+
+/* ── Live Popover Menu ────────────────────────────────────── */
+.live-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  padding: 14px 16px;
+  z-index: 1000;
+  animation: scaleIn var(--dur-fast) var(--ease);
+}
+.live-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.live-popover-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 14px;
+  background: var(--surface-2);
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+.live-popover-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Contextual Hint Chips ─────────────────────────────────── */
+.hint-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--primary-50);
+  border: 1px solid var(--primary-100, var(--border));
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  margin-bottom: 16px;
+  font-size: 12.5px;
+  color: var(--text);
+  animation: fadeIn var(--dur) var(--ease);
+}
+.hint-chip-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.hint-chip-dismiss {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 2px 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--dur-fast);
+}
+.hint-chip-dismiss:hover {
+  color: var(--text);
+}
+
+/* ── Time Travel Bar / Controls ────────────────────────────── */
+.time-travel-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px 4px;
+  font-size: 11.5px;
+}
+.time-travel-btn {
+  background: transparent;
+  border: none;
+  border-radius: 14px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease);
+}
+.time-travel-btn:hover {
+  color: var(--text);
+}
+.time-travel-btn.active {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Mobile Touch Targets ──────────────────────────────────── */
+@media (max-width: 768px) {
+  button, .icon-btn, .btn, [role="button"] {
+    min-height: 40px;
+    min-width: 40px;
+  }
+}
+
+

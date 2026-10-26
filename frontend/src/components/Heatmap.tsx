@@ -12,6 +12,8 @@ interface HeatmapProps {
   items: UrgencyItem[];
   active: HeatSelection | null;
   onSelect: (selection: HeatSelection | null) => void;
+  highlighted?: HeatSelection | null;
+  onHover?: (selection: HeatSelection | null) => void;
 }
 
 const DAY_COLUMNS = 14; // today + next 13 days
@@ -52,7 +54,7 @@ const TEMPLATE = '54px repeat(15, minmax(0, 1fr))';
  * Cell shade comes from the 5-step heat scale by item count.
  * Clicking a non-empty cell filters the attention table (toggle to clear).
  */
-export function Heatmap({ items, active, onSelect }: HeatmapProps) {
+export function Heatmap({ items, active, onSelect, highlighted, onHover }: HeatmapProps) {
   const counts = useMemo(() => {
     const map: Record<string, number[]> = {};
     HEATMAP_REGIONS.forEach(r => {
@@ -78,7 +80,7 @@ export function Heatmap({ items, active, onSelect }: HeatmapProps) {
   );
 
   return (
-    <div className="heatmap">
+    <div className="heatmap" onMouseLeave={() => onHover?.(null)}>
       <div className="heatmap-grid" style={{ gridTemplateColumns: TEMPLATE }}>
         {HEATMAP_REGIONS.map(region => (
           <Fragment key={region}>
@@ -87,14 +89,16 @@ export function Heatmap({ items, active, onSelect }: HeatmapProps) {
               const day = columnDay(i);
               const count = counts[region]?.[i] ?? 0;
               const isActive = active?.region === region && active.day === day;
+              const isRing = highlighted?.region === region && highlighted.day === day;
               const label = i === 0 ? 'overdue' : day === 0 ? 'due today' : `due in ${day} days`;
               return (
                 <button
                   key={i}
                   type="button"
-                  className={`heatmap-cell heat-${heatLevel(count)} ${isActive ? 'active' : ''}`}
+                  className={`heatmap-cell heat-${heatLevel(count)} ${isActive ? 'active' : ''} ${isRing ? 'cell-ring' : ''}`}
                   disabled={count === 0}
                   onClick={() => onSelect(isActive ? null : { region, day })}
+                  onMouseEnter={() => count > 0 && onHover?.({ region, day })}
                   aria-label={`${region}, ${label}: ${count} item${count === 1 ? '' : 's'}`}
                   aria-pressed={isActive}
                   title={`${region} · ${label}: ${count} item${count === 1 ? '' : 's'}`}

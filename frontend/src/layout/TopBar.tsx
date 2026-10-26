@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Bell, Menu, Search, Command } from 'lucide-react';
+import { Bell, Menu, Search, Command, Play, Pause, Sparkles, RefreshCw, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 const PAGE_TITLES: Record<string, string> = {
@@ -37,28 +37,32 @@ export function TopBar({ safeguardDismissed, onDismissSafeguard, onOpenMenu, onO
     role, setRole,
     page, setPage,
     isLive,
+    simulationActive, setSimulationActive,
+    triggerSimulatedEvent,
+    lastUpdatedTimestamp,
+    bellUnreadCount, clearBellCount,
+    timeTravelDays, setTimeTravelDays,
+    resetDemoData,
     searchQuery, setSearchQuery,
   } = useApp();
 
   const searchRef = useRef<HTMLInputElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [showLiveMenu, setShowLiveMenu] = useState(false);
 
-  const [hasUnread] = useState(() => {
-    try { return localStorage.getItem('aicte-bell-read') !== '1'; } catch { return true; }
-  });
-
-  // "Updated Xs ago" ticker
+  // "Updated Xs ago" ticker connected to lastUpdatedTimestamp
   const [updatedSec, setUpdatedSec] = useState(0);
-  const updatedRef = useRef(Date.now());
   useEffect(() => {
+    setUpdatedSec(0);
     const iv = setInterval(() => {
-      setUpdatedSec(Math.floor((Date.now() - updatedRef.current) / 1000));
-    }, 10_000);
+      setUpdatedSec(Math.floor((Date.now() - lastUpdatedTimestamp) / 1000));
+    }, 1000);
     return () => clearInterval(iv);
-  }, []);
+  }, [lastUpdatedTimestamp]);
 
-  const updatedLabel = updatedSec < 30
+  const updatedLabel = updatedSec < 15
     ? 'Just now'
-    : updatedSec < 120
+    : updatedSec < 60
     ? `${updatedSec}s ago`
     : `${Math.floor(updatedSec / 60)}m ago`;
 
@@ -84,13 +88,51 @@ export function TopBar({ safeguardDismissed, onDismissSafeguard, onOpenMenu, onO
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  // Close live popover on outside click
+  useEffect(() => {
+    if (!showLiveMenu) return;
+    const clickOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setShowLiveMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', clickOutside);
+    return () => document.removeEventListener('mousedown', clickOutside);
+  }, [showLiveMenu]);
+
+  const handleBellClick = () => {
+    clearBellCount();
+    setPage('es');
+  };
+
   return (
     <div>
-      {/* Safeguard banner */}
+      {/* Safeguard banner + Time Travel Controls */}
       {!safeguardDismissed && (
         <div className="safeguard-banner" role="status" aria-label="Regulatory Notice">
-          <strong>⚖️ Regulatory Safeguard:</strong>
-          {' '}System alerts support processing but do not replace statutory verification or decisions reserved for competent authorities.
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, flexWrap: 'wrap' }}>
+            <span>
+              <strong>⚖️ Regulatory Safeguard:</strong> System alerts support processing but do not replace statutory verification or decisions reserved for competent authorities.
+            </span>
+            <div className="time-travel-bar" style={{ marginLeft: 'auto' }} role="group" aria-label="Simulated Date Controls">
+              <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, paddingLeft: 4 }}>Demo Date:</span>
+              {[
+                { label: 'Baseline', days: 0 },
+                { label: '+7d', days: 7 },
+                { label: '+14d', days: 14 },
+                { label: '+30d', days: 30 },
+              ].map(item => (
+                <button
+                  key={item.days}
+                  className={`time-travel-btn ${timeTravelDays === item.days ? 'active' : ''}`}
+                  onClick={() => setTimeTravelDays(item.days)}
+                  title={`Fast forward timeline by ${item.days} days`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <button onClick={onDismissSafeguard} aria-label="Dismiss regulatory notice">×</button>
         </div>
       )}
@@ -127,14 +169,86 @@ export function TopBar({ safeguardDismissed, onDismissSafeguard, onOpenMenu, onO
         </div>
 
         <div className="topbar-controls">
-          {/* Live / Mock badge */}
-          <span
-            className={`mode-pill ${isLive ? 'live' : 'mock'}`}
-            title={isLive ? `Connected to FastAPI backend · ${updatedLabel}` : 'Running on local mock data'}
-          >
-            <span className={`mode-pill-dot ${isLive ? 'pulse' : ''}`} aria-hidden="true" />
-            {isLive ? `Live · ${updatedLabel}` : 'Mock'}
-          </span>
+          {/* Live / Mock badge with popover toggle */}
+          <div style={{ position: 'relative' }} ref={popoverRef}>
+            <button
+              className={`mode-pill ${isLive ? 'live' : 'mock'}`}
+              onClick={() => setShowLiveMenu(v => !v)}
+              title="Click to view live sync options"
+              style={{ cursor: 'pointer', border: 'none', background: 'none' }}
+              aria-expanded={showLiveMenu}
+              aria-haspopup="dialog"
+            >
+              <span className={`mode-pill-dot ${isLive || simulationActive ? 'pulse' : ''}`} aria-hidden="true" />
+              {isLive ? `Live · ${updatedLabel}` : `Mock · ${updatedLabel}`}
+            </button>
+
+            {showLiveMenu && (
+              <div className="live-popover" role="dialog" aria-label="Live sync settings">
+                <div className="live-popover-header">
+                  <span>Data Synchronization</span>
+                  <button
+                    className="icon-btn"
+                    style={{ padding: 2 }}
+                    onClick={() => setShowLiveMenu(false)}
+                    aria-label="Close sync menu"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+                <div className="live-popover-status">
+                  <span
+                    className={`mode-pill-dot ${isLive || simulationActive ? 'pulse' : ''}`}
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {isLive
+                      ? 'Connected to FastAPI backend'
+                      : simulationActive
+                      ? 'Mock mode active (auto-simulating events)'
+                      : 'Mock simulation paused'}
+                  </span>
+                </div>
+                <div className="live-popover-actions">
+                  {!isLive && (
+                    <>
+                      <button
+                        className="btn btn-secondary btn-xs"
+                        style={{ width: '100%', justifyContent: 'flex-start' }}
+                        onClick={() => {
+                          setSimulationActive(a => !a);
+                        }}
+                      >
+                        {simulationActive ? <Pause size={12} /> : <Play size={12} />}
+                        {simulationActive ? 'Pause Simulation' : 'Resume Simulation'}
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-xs"
+                        style={{ width: '100%', justifyContent: 'flex-start' }}
+                        onClick={() => {
+                          triggerSimulatedEvent();
+                        }}
+                      >
+                        <Sparkles size={12} />
+                        Simulate Event Now
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-xs"
+                        style={{ width: '100%', justifyContent: 'flex-start' }}
+                        onClick={() => {
+                          resetDemoData();
+                          setShowLiveMenu(false);
+                        }}
+                      >
+                        <RefreshCw size={12} />
+                        Reset All Demo Records
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Role selector */}
           <select
@@ -165,15 +279,37 @@ export function TopBar({ safeguardDismissed, onDismissSafeguard, onOpenMenu, onO
               : `${role.toLowerCase()} region`}
           </span>
 
-          {/* Bell */}
+          {/* Bell with unread badge & pulse */}
           <button
-            className="topbar-bell"
-            onClick={() => setPage('es')}
-            aria-label={hasUnread ? 'Alerts, unread notifications' : 'Alerts'}
+            className={`topbar-bell ${bellUnreadCount > 0 ? 'shake' : ''}`}
+            onClick={handleBellClick}
+            aria-label={bellUnreadCount > 0 ? `${bellUnreadCount} unread alerts` : 'Alerts'}
             title="Alerts"
+            style={{ position: 'relative' }}
           >
             <Bell size={17} aria-hidden="true" />
-            {hasUnread && <span className={`topbar-bell-dot ${isLive ? 'pulse' : ''}`} aria-hidden="true" />}
+            {bellUnreadCount > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: -4,
+                  right: -4,
+                  background: 'var(--red)',
+                  color: 'white',
+                  borderRadius: '50%',
+                  minWidth: 16,
+                  height: 16,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 2px',
+                }}
+              >
+                {bellUnreadCount > 9 ? '9+' : bellUnreadCount}
+              </span>
+            )}
           </button>
 
           {/* Avatar */}

@@ -6,9 +6,20 @@ export interface AreaPoint {
   count: number;
 }
 
+export interface BrushRange {
+  startDay: number;
+  endDay: number;
+  startDate: Date;
+  endDate: Date;
+}
+
 interface AreaChartProps {
   data: AreaPoint[];
   height?: number;
+  highlightedDay?: number | null;
+  onHoverDay?: (day: number | null) => void;
+  selectedRange?: { startDay: number; endDay: number } | null;
+  onBrushSelect?: (range: BrushRange | null) => void;
 }
 
 const PAD = { l: 44, r: 14, t: 18, b: 30 };
@@ -50,11 +61,21 @@ function smoothPath(pts: { x: number; y: number }[], top: number, bottom: number
  * Hand-written SVG area chart (no chart library).
  * Soft primary gradient fill, dashed gridlines, hover band + white tooltip card.
  */
-export function AreaChart({ data, height = 260 }: AreaChartProps) {
+export function AreaChart({
+  data,
+  height = 260,
+  highlightedDay,
+  onHoverDay,
+  selectedRange,
+  onBrushSelect,
+}: AreaChartProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [width, setWidth] = useState(640);
   const [hover, setHover] = useState<number | null>(null);
+  const [brushStart, setBrushStart] = useState<number | null>(null);
+  const [brushCurrent, setBrushCurrent] = useState<number | null>(null);
+  const [isBrushing, setIsBrushing] = useState(false);
   const gradientId = useId().replace(/[^a-zA-Z0-9_-]/g, '');
 
   useEffect(() => {
@@ -67,6 +88,20 @@ export function AreaChart({ data, height = 260 }: AreaChartProps) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Listen for Escape key to clear brush
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onBrushSelect?.(null);
+        setBrushStart(null);
+        setBrushCurrent(null);
+        setIsBrushing(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onBrushSelect]);
 
   const n = data.length;
   const plotW = Math.max(0, width - PAD.l - PAD.r);
@@ -93,19 +128,97 @@ export function AreaChart({ data, height = 260 }: AreaChartProps) {
     i => i === 0 || i === n - 1 || i % tickStep === 0
   );
 
-  const handleMove = (e: React.PointerEvent<SVGRectElement>) => {
+  const getIdxFromX = (clientX: number) => {
     const rect = svgRef.current?.getBoundingClientRect();
-    if (!rect || n === 0) return;
-    const x = e.clientX - rect.left;
+    if (!rect || n === 0) return 0;
+    const x = clientX - rect.left;
     const t = (x - PAD.l) / Math.max(1, plotW);
-    const idx = Math.round(t * (n - 1));
-    setHover(Math.max(0, Math.min(n - 1, idx)));
+    return Math.max(0, Math.min(n - 1, Math.round(t * (n - 1))));
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<SVGRectElement>) => {
+    const idx = getIdxFromX(e.clientX);
+    setIsBrushing(true);
+    setBrushStart(idx);
+    setBrushCurrent(idx);
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<SVGRectElement>) => {
+    const idx = getIdxFromX(e.clientX);
+    setHover(idx);
+    onHoverDay?.(data[idx]?.day ?? null);
+
+    if (isBrushing) {
+      setBrushCurrent(idx);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<SVGRectElement>) => {
+    if (isBrushing && brushStart !== null && brushCurrent !== null) {
+      const minIdx = Math.min(brushStart, brushCurrent);
+      const maxIdx = Math.max(brushStart, brushCurrent);
+      if (minIdx !== maxIdx) {
+        onBrushSelect?.({
+          startDay: data[minIdx].day,
+          endDay: data[maxIdx].day,
+          startDate: data[minIdx].date,
+          endDate: data[maxIdx].date,
+        });
+      } else {
+        onBrushSelect?.(null);
+      }
+    }
+    setIsBrushing(false);
+    try {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handlePointerLeave = () => {
+    if (!isBrushing) {
+      setHover(null);
+      onHoverDay?.(null);
+    }
   };
 
   const hoverPoint = hover !== null ? points[hover] : null;
   const hoverData = hover !== null ? data[hover] : null;
   const placeBelow = hoverPoint ? hoverPoint.y < 86 : false;
   const tooltipLeft = hoverPoint ? Math.max(86, Math.min(width - 86, hoverPoint.x)) : 0;
+
+  // Active brush rect calculation
+  const activeBrushMin = isBrushing && brushStart !== null && brushCurrent !== null
+    ? Math.min(brushStart, brushCurrent)
+    : selectedRange
+      ? data.findIndex(d => d.day >= selectedRange.startDay)
+      : null;
+
+  const activeBrushMax = isBrushing && brushStart !== null && brushCurrent !== null
+    ? Math.max(brushStart, brushCurrent)
+    : selectedRange
+      ? (() => {
+          for (let i = data.length - 1; i >= 0; i--) {
+            if (data[i].day <= selectedRange.endDay) return i;
+          }
+          return null;
+        })()
+      : null;
+
+  const brushBox = activeBrushMin !== null && activeBrushMax !== null && activeBrushMin >= 0 && activeBrushMax >= 0 && activeBrushMin !== activeBrushMax
+    ? {
+        x: xFor(activeBrushMin) - 4,
+        w: Math.max(8, xFor(activeBrushMax) - xFor(activeBrushMin) + 8),
+      }
+    : null;
+
+  // Highlighted day point from external hover
+  const extHighlightedIdx = highlightedDay !== null && highlightedDay !== undefined
+    ? data.findIndex(d => d.day === highlightedDay)
+    : -1;
+  const extPoint = extHighlightedIdx >= 0 ? points[extHighlightedIdx] : null;
 
   return (
     <div className="area-chart" ref={wrapRef}>
@@ -115,6 +228,7 @@ export function AreaChart({ data, height = 260 }: AreaChartProps) {
         height={height}
         role="img"
         aria-label="Items due per day"
+        style={{ cursor: isBrushing ? 'col-resize' : 'crosshair' }}
       >
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -159,6 +273,29 @@ export function AreaChart({ data, height = 260 }: AreaChartProps) {
           />
         )}
 
+        {/* Brush selection box */}
+        {brushBox && (
+          <rect
+            x={brushBox.x}
+            y={PAD.t}
+            width={brushBox.w}
+            height={plotH}
+            fill="var(--primary)"
+            opacity="0.15"
+            stroke="var(--primary)"
+            strokeDasharray="4 3"
+            rx="4"
+          />
+        )}
+
+        {/* External hover ring marker */}
+        {extPoint && (
+          <g className="cell-ring">
+            <circle cx={extPoint.x} cy={extPoint.y} r="9" fill="none" stroke="var(--primary)" strokeWidth="2.5" opacity="0.8" />
+            <circle cx={extPoint.x} cy={extPoint.y} r="4" fill="var(--primary)" />
+          </g>
+        )}
+
         {/* Hover band + marker */}
         {hoverPoint && (
           <>
@@ -197,19 +334,21 @@ export function AreaChart({ data, height = 260 }: AreaChartProps) {
           </text>
         ))}
 
-        {/* Pointer capture overlay */}
+        {/* Pointer capture overlay for brush and hover */}
         <rect
           x={PAD.l}
           y={PAD.t}
           width={plotW}
           height={plotH}
           fill="transparent"
-          onPointerMove={handleMove}
-          onPointerLeave={() => setHover(null)}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerLeave}
         />
       </svg>
 
-      {hoverPoint && hoverData && (
+      {hoverPoint && hoverData && !isBrushing && (
         <div
           className="chart-tooltip"
           style={{

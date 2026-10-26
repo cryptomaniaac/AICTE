@@ -155,6 +155,35 @@ def get_applications(
 
     return results
 
+@app.post("/api/applications", response_model=schemas.ApplicationResponse, status_code=201)
+def create_application(
+    app_in: schemas.ApplicationCreate,
+    db: Session = Depends(get_db)
+):
+    existing = db.query(Application).filter(Application.id == app_in.id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Application already exists")
+
+    app_obj = Application(
+        id=app_in.id,
+        institution_id=app_in.institution_id,
+        route_type=app_in.route_type,
+        current_stage_index=app_in.current_stage_index,
+        age_in_days=app_in.age_in_days,
+        evc_timeline_status=app_in.evc_timeline_status,
+    )
+    db.add(app_obj)
+
+    log_entry = AuditLog(
+        timestamp=format_timestamp(),
+        actor="System",
+        event_description=f"Application {app_in.id} created for institution {app_in.institution_id}"
+    )
+    db.add(log_entry)
+    db.commit()
+    db.refresh(app_obj)
+    return app_obj
+
 @app.post("/api/applications/{app_id}/advance", response_model=schemas.ApplicationResponse)
 def advance_application(
     app_id: str,

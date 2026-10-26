@@ -9,9 +9,13 @@ import { UndertakingsPage } from './pages/UndertakingsPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { EscalationsPage } from './pages/EscalationsPage';
 import { AuditTrailPage } from './pages/AuditTrailPage';
-import { AphRulesModal } from './components/AphRulesModal';
-import { ToastContainer } from './components/Toast';
-import { CommandPalette } from './components/CommandPalette';
+import {
+  AphRulesModal,
+  ToastContainer,
+  CommandPalette,
+  GuidedTour,
+  ShortcutsModal,
+} from './components';
 
 /** Sync reduced-motion preference to document root attribute */
 function useReducedMotion() {
@@ -37,7 +41,7 @@ function useReducedMotion() {
 
 function AppShell() {
   const {
-    page,
+    page, setPage,
     toasts, dismissToast,
     isAphModalOpen, setIsAphModalOpen,
     aphRules, handleSaveAphRules, role,
@@ -49,6 +53,8 @@ function AppShell() {
     () => sessionStorage.getItem('safeguard-dismissed') === '1'
   );
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const { reduced, toggle: toggleMotion } = useReducedMotion();
 
   // Page-transition key so the wrapper re-mounts on navigation
@@ -61,16 +67,62 @@ function AppShell() {
     }
   }, [page]);
 
-  // Cmd/Ctrl+K opens command palette
+  // Global keyboard shortcuts (Cmd+K, ?, G sequence)
+  const gSequenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gPressedRef = useRef(false);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const tag = (document.activeElement as HTMLElement)?.tagName;
+      const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setCmdOpen(o => !o);
+        return;
+      }
+
+      if (isInput) return;
+
+      if (e.key === '?') {
+        e.preventDefault();
+        setShortcutsOpen(o => !o);
+        return;
+      }
+
+      if (e.key === 'g' || e.key === 'G') {
+        gPressedRef.current = true;
+        if (gSequenceTimer.current) clearTimeout(gSequenceTimer.current);
+        gSequenceTimer.current = setTimeout(() => {
+          gPressedRef.current = false;
+        }, 800);
+        return;
+      }
+
+      if (gPressedRef.current) {
+        gPressedRef.current = false;
+        if (e.key === 'd' || e.key === 'D') { setPage('ov'); }
+        else if (e.key === 'a' || e.key === 'A') { setPage('ap'); }
+        else if (e.key === 'e' || e.key === 'E') { setPage('evc'); }
+        else if (e.key === 's' || e.key === 'S') { setPage('es'); }
+        else if (e.key === 'l' || e.key === 'L') { setPage('lg'); }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, [setPage]);
+
+  // Check if first-time user for guided tour
+  useEffect(() => {
+    try {
+      const seen = localStorage.getItem('aicte_tour_seen');
+      if (!seen) {
+        const timer = setTimeout(() => setTourOpen(true), 1200);
+        return () => clearTimeout(timer);
+      }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const dismissSafeguard = () => {
@@ -143,7 +195,20 @@ function AppShell() {
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {/* Command palette */}
-      {cmdOpen && <CommandPalette onClose={() => setCmdOpen(false)} />}
+      {cmdOpen && (
+        <CommandPalette
+          onClose={() => setCmdOpen(false)}
+          onOpenTour={() => setTourOpen(true)}
+          onOpenShortcuts={() => setShortcutsOpen(true)}
+          onToggleReducedMotion={toggleMotion}
+        />
+      )}
+
+      {/* Guided Tour */}
+      <GuidedTour isOpen={tourOpen} onClose={() => setTourOpen(false)} />
+
+      {/* Keyboard Shortcuts Sheet */}
+      <ShortcutsModal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   );
 }

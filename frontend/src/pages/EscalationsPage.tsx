@@ -1,139 +1,521 @@
-import { Bell, Play } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import {
+  Bell, Play, AlertOctagon, AlertTriangle, Clock,
+  Send, Building2, ExternalLink, Filter, Search,
+  Download, ArrowRight,
+} from 'lucide-react';
 import { useApp, alertLevel } from '../context/AppContext';
 import { StatusChip } from '../components/shared/StatusChip';
+import { ConfirmDialog } from '../components/shared/ConfirmDialog';
+import type { UrgencyItem } from '../types';
 
 type Level = 'L3' | 'L2' | 'L1';
 
-const LEVEL_INFO: Record<Level, { label: string; desc: string; notified: string; colorClass: string }> = {
+const LEVEL_INFO: Record<Level, { label: string; desc: string; notified: string; colorClass: string; consequence: string }> = {
   L3: {
-    label: 'L3 — Critical',
-    desc: 'Overdue by more than 7 days',
-    notified: 'Bureau + Regional Officer notified immediately',
+    label: 'L3 — Critical Breach',
+    desc: 'Overdue by more than 7 days past statutory SLA',
+    notified: 'AICTE Member Secretary & Bureau Head notified immediately',
+    consequence: 'Subject to mandatory review, Show-Cause Notice & penalty proceedings',
     colorClass: 'chip-l3',
   },
   L2: {
-    label: 'L2 — Overdue',
-    desc: 'Past SLA deadline (1–7 days overdue)',
-    notified: 'Regional Officer notified',
+    label: 'L2 — Overdue Threshold',
+    desc: 'Past statutory SLA deadline (1–7 days overdue)',
+    notified: 'Regional Officer & Scrutiny Convener notified',
+    consequence: 'Formal explanation required within 48 hours',
     colorClass: 'chip-l2',
   },
   L1: {
-    label: 'L1 — Due Soon',
-    desc: 'Due within the next 15 days',
-    notified: 'Institution reminded automatically',
+    label: 'L1 — Proactive Warning',
+    desc: 'Approaching deadline (within next 15 days)',
+    notified: 'Institution Nodal Officer reminded automatically',
+    consequence: 'Automated SMS & Portal warning generated',
     colorClass: 'chip-l1',
   },
 };
 
 export function EscalationsPage() {
-  const { urgencyItems, actionLoading, handleSweep } = useApp();
+  const {
+    urgencyItems,
+    actionLoading,
+    handleSweep,
+    setPage,
+    setSearchQuery,
+    setPendingDrawerAppId,
+    showToast,
+  } = useApp();
+
+  const [levelFilter, setLevelFilter] = useState<'all' | Level>('all');
+  const [regionFilter, setRegionFilter] = useState<string>('All');
+  const [localSearch, setLocalSearch] = useState<string>('');
+
+  // Escalation action state
+  const [selectedEscalation, setSelectedEscalation] = useState<{
+    item: UrgencyItem;
+    actionType: 'show-cause' | 'ro-warning' | 'reminder';
+  } | null>(null);
+  const [isActionExecuting, setIsActionExecuting] = useState(false);
+
   const isSweeping = actionLoading === 'sweep';
 
-  const grouped: Record<Level, typeof urgencyItems> = {
+  // Grouped items
+  const grouped: Record<Level, UrgencyItem[]> = useMemo(() => ({
     L3: urgencyItems.filter(x => alertLevel(x.d) === 'L3'),
     L2: urgencyItems.filter(x => alertLevel(x.d) === 'L2'),
     L1: urgencyItems.filter(x => alertLevel(x.d) === 'L1'),
+  }), [urgencyItems]);
+
+  const totalEscalations = urgencyItems.length;
+
+  // Regional breakdown
+  const regionBreakdown = useMemo(() => {
+    const counts: Record<string, number> = {};
+    urgencyItems.forEach(x => {
+      counts[x.reg] = (counts[x.reg] || 0) + 1;
+    });
+    return counts;
+  }, [urgencyItems]);
+
+  // Distinct regions
+  const regions = useMemo(() => {
+    const set = new Set<string>();
+    urgencyItems.forEach(x => set.add(x.reg));
+    return ['All', ...Array.from(set).sort()];
+  }, [urgencyItems]);
+
+  // Filtered items based on user criteria
+  const filteredItems = useMemo(() => {
+    return urgencyItems.filter(x => {
+      const lvl = alertLevel(x.d) as Level;
+      if (levelFilter !== 'all' && lvl !== levelFilter) return false;
+      if (regionFilter !== 'All' && x.reg !== regionFilter) return false;
+      if (localSearch.trim()) {
+        const q = localSearch.toLowerCase();
+        const match = x.inst.toLowerCase().includes(q) ||
+          x.kind.toLowerCase().includes(q) ||
+          (x.stage && x.stage.toLowerCase().includes(q)) ||
+          x.reg.toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      return true;
+    }).sort((a, b) => a.d - b.d);
+  }, [urgencyItems, levelFilter, regionFilter, localSearch]);
+
+  // Quick navigation to Application drawer or page
+  const handleNavigateApp = (item: UrgencyItem) => {
+    if (item.appId) {
+      setPage('ap');
+      setSearchQuery(item.inst);
+      setPendingDrawerAppId(item.appId);
+    } else {
+      setPage('ap');
+      setSearchQuery(item.inst);
+    }
+  };
+
+  // Execute statutory escalation action
+  const handleConfirmAction = async () => {
+    if (!selectedEscalation) return;
+    setIsActionExecuting(true);
+    await new Promise(r => setTimeout(r, 600));
+
+    const { item, actionType } = selectedEscalation;
+    if (actionType === 'show-cause') {
+      showToast(
+        'Show-Cause Notice Dispatched',
+        `Official statutory Show-Cause Notice sent to ${item.inst} and Bureau Head. Response required in 48h.`,
+        'warn'
+      );
+    } else if (actionType === 'ro-warning') {
+      showToast(
+        'RO Directive Issued',
+        `Expedited resolution directive issued to ${item.reg} Regional Officer for ${item.inst}.`,
+        'info'
+      );
+    } else {
+      showToast(
+        'Reminder Transmitted',
+        `Automated portal reminder transmitted to Nodal Officer of ${item.inst}.`,
+        'success'
+      );
+    }
+
+    setIsActionExecuting(false);
+    setSelectedEscalation(null);
+  };
+
+  // Export CSV
+  const handleExportCsv = () => {
+    const headers = ['Severity Level', 'Item Type', 'Stage', 'Institution', 'Region', 'Days to Deadline', 'Action Status'];
+    const rows = filteredItems.map(x => [
+      alertLevel(x.d),
+      `"${x.kind}"`,
+      `"${x.stage || 'N/A'}"`,
+      `"${x.inst.replace(/"/g, '""')}"`,
+      x.reg,
+      x.d,
+      x.d < -7 ? 'Bureau Escalation' : x.d < 0 ? 'RO Alert' : 'Reminder Sent',
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aicte_escalation_report_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Export Generated', `Exported ${filteredItems.length} escalation items.`, 'info');
   };
 
   return (
     <div className="page-content">
+      {/* Page Header */}
       <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
-          <h1>Escalations</h1>
-          <p>Alerts and escalation ladder · {Object.values(grouped).flat().length} active items</p>
+          <h1>Statutory Escalation Ladder</h1>
+          <p>Real-time SLA tracking, multi-tier notification protocols, and bureau escalation directives</p>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={handleSweep}
-          disabled={isSweeping}
-          aria-label="Run escalation alert sweep across all items"
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={handleExportCsv}
+            disabled={filteredItems.length === 0}
+            title="Export escalations manifest as CSV"
+          >
+            <Download size={13} aria-hidden="true" />
+            Export CSV
+          </button>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={handleSweep}
+            disabled={isSweeping}
+            aria-label="Run escalation alert sweep across all items"
+          >
+            <Play size={13} aria-hidden="true" />
+            {isSweeping ? 'Running Sweep…' : 'Run Alert Sweep'}
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Ladder Summary Panels */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+        gap: 12,
+        marginBottom: 18,
+      }}>
+        {/* L3 Card */}
+        <div
+          className={`panel ${levelFilter === 'L3' ? 'active-filter-panel' : ''}`}
+          style={{
+            padding: '16px 18px',
+            borderLeft: '4px solid var(--red)',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onClick={() => setLevelFilter(levelFilter === 'L3' ? 'all' : 'L3')}
         >
-          <Play size={14} aria-hidden="true" />
-          {isSweeping ? 'Running Sweep…' : 'Run Alert Sweep'}
-        </button>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span className="chip chip-l3" style={{ fontSize: 11, fontWeight: 700 }}>L3 — Critical</span>
+            <AlertOctagon size={16} style={{ color: 'var(--red)' }} />
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--red)' }}>{grouped.L3.length}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-2)', marginTop: 2 }}>{LEVEL_INFO.L3.desc}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>📬 Bureau Head escalation</div>
+        </div>
+
+        {/* L2 Card */}
+        <div
+          className={`panel ${levelFilter === 'L2' ? 'active-filter-panel' : ''}`}
+          style={{
+            padding: '16px 18px',
+            borderLeft: '4px solid var(--amber)',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onClick={() => setLevelFilter(levelFilter === 'L2' ? 'all' : 'L2')}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span className="chip chip-l2" style={{ fontSize: 11, fontWeight: 700 }}>L2 — Overdue</span>
+            <AlertTriangle size={16} style={{ color: 'var(--amber)' }} />
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--amber)' }}>{grouped.L2.length}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-2)', marginTop: 2 }}>{LEVEL_INFO.L2.desc}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>📬 Regional Officer notice</div>
+        </div>
+
+        {/* L1 Card */}
+        <div
+          className={`panel ${levelFilter === 'L1' ? 'active-filter-panel' : ''}`}
+          style={{
+            padding: '16px 18px',
+            borderLeft: '4px solid var(--blue)',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onClick={() => setLevelFilter(levelFilter === 'L1' ? 'all' : 'L1')}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span className="chip chip-l1" style={{ fontSize: 11, fontWeight: 700 }}>L1 — Due Soon</span>
+            <Clock size={16} style={{ color: 'var(--blue)' }} />
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--blue)' }}>{grouped.L1.length}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-2)', marginTop: 2 }}>{LEVEL_INFO.L1.desc}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>📬 Automated SMS/email</div>
+        </div>
+
+        {/* Total Overview Card */}
+        <div
+          className={`panel ${levelFilter === 'all' ? 'active-filter-panel' : ''}`}
+          style={{
+            padding: '16px 18px',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onClick={() => setLevelFilter('all')}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)' }}>Active Alerts</span>
+            <Bell size={16} style={{ color: 'var(--primary)' }} />
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)' }}>{totalEscalations}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
+            {Object.entries(regionBreakdown).map(([r, c]) => `${r}: ${c}`).join(' · ') || 'No regional pendency'}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--primary)', marginTop: 4, fontWeight: 500 }}>
+            {levelFilter === 'all' ? 'Showing all levels' : 'Click to show all'}
+          </div>
+        </div>
       </div>
 
-      {/* Escalation ladder explanation */}
-      <div className="panel mb-4" style={{ padding: 16 }}>
-        <div className="panel-title" style={{ marginBottom: 12 }}>
-          <Bell size={14} aria-hidden="true" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
-          Escalation Ladder
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-          {(['L3', 'L2', 'L1'] as Level[]).map(lvl => {
-            const info = LEVEL_INFO[lvl];
-            return (
-              <div key={lvl} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span className={`chip ${info.colorClass}`}>{lvl}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{info.label.split('—')[1].trim()}</span>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 4 }}>{info.desc}</div>
-                <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>📬 {info.notified}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Filter and Search Toolbar */}
+      <div className="panel" style={{ padding: '14px 18px', marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          {/* Level Filter Buttons */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>Severity:</span>
+            {(['all', 'L3', 'L2', 'L1'] as const).map(lvl => (
+              <button
+                key={lvl}
+                className={`btn btn-xs ${levelFilter === lvl ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setLevelFilter(lvl)}
+                style={{ borderRadius: 6, fontWeight: levelFilter === lvl ? 600 : 500 }}
+              >
+                {lvl === 'all' ? 'All Severities' : lvl}
+              </button>
+            ))}
+          </div>
 
-      {/* Grouped items */}
-      {(['L3', 'L2', 'L1'] as Level[]).map(lvl => {
-        const items = grouped[lvl];
-        if (items.length === 0) return null;
-        const info = LEVEL_INFO[lvl];
-
-        return (
-          <div key={lvl} className="escalation-group mb-4">
-            <div className="escalation-group-header">
-              <span className={`chip ${info.colorClass}`}>{lvl}</span>
-              <span style={{ fontWeight: 600, color: 'var(--text)', fontSize: 13 }}>{info.label}</span>
-              <span style={{ fontSize: 12, color: 'var(--muted)', flex: 1 }}>{info.desc}</span>
-              <span className="tabnum" style={{ fontWeight: 700, fontSize: 18 }}>{items.length}</span>
+          {/* Region and Search Inputs */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Filter size={13} style={{ color: 'var(--muted)' }} />
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>Region:</span>
+              <select
+                className="select select-sm"
+                value={regionFilter}
+                onChange={e => setRegionFilter(e.target.value)}
+                style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6 }}
+              >
+                {regions.map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
             </div>
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Institution</th>
-                    <th>Region</th>
-                    <th>Timeline</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((x, i) => (
-                    <tr key={i}>
-                      <td>
-                        <span style={{ fontWeight: 500, color: 'var(--text)' }}>
-                          {x.kind}{x.stage ? ` · ${x.stage}` : ''}
-                        </span>
-                      </td>
-                      <td style={{ maxWidth: 220 }}>
-                        <span style={{ display: 'block' }} className="truncate">{x.inst}</span>
-                      </td>
-                      <td><span className="chip chip-grey">{x.reg}</span></td>
-                      <td><StatusChip days={x.d} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+            <div style={{ position: 'relative', width: 220 }}>
+              <Search
+                size={12}
+                style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }}
+              />
+              <input
+                type="search"
+                className="input input-sm"
+                placeholder="Filter institution or item…"
+                value={localSearch}
+                onChange={e => setLocalSearch(e.target.value)}
+                style={{ paddingLeft: 26, fontSize: 12, width: '100%', borderRadius: 6 }}
+              />
             </div>
           </div>
-        );
-      })}
-
-      {Object.values(grouped).flat().length === 0 && (
-        <div className="empty-state">
-          <div className="empty-state-icon"><Bell size={40} /></div>
-          <h3>No active escalations</h3>
-          <p>All items are within acceptable SLA thresholds. Run an alert sweep to check for new escalations.</p>
         </div>
-      )}
+      </div>
 
-      <p style={{ marginTop: 16, fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
-        L1: reminder to institution within 15 days · L2: Regional officer notified when overdue ·
-        L3: Bureau escalation when overdue by more than 7 days. Thresholds are configurable via APH Rules.
-      </p>
+      {/* Main Escalations List Table */}
+      <div className="panel">
+        {filteredItems.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon"><Bell size={40} /></div>
+            <h3>No escalations match current filters</h3>
+            <p>All items in this view are within compliant SLA windows.</p>
+            <button
+              className="btn btn-sm btn-secondary"
+              style={{ marginTop: 12 }}
+              onClick={() => { setLevelFilter('all'); setRegionFilter('All'); setLocalSearch(''); }}
+            >
+              Reset Filters
+            </button>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 100 }}>Level</th>
+                  <th>Item Description</th>
+                  <th>Institution</th>
+                  <th>Region</th>
+                  <th>Timeline Status</th>
+                  <th style={{ textAlign: 'right' }}>Direct Statutory Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((x, i) => {
+                  const lvl = alertLevel(x.d) as Level;
+                  const info = LEVEL_INFO[lvl] || LEVEL_INFO.L1;
+
+                  return (
+                    <tr key={i} style={{ background: lvl === 'L3' ? 'var(--red-bg)' : undefined }}>
+                      <td>
+                        <span className={`chip ${info.colorClass}`} style={{ fontWeight: 700 }}>
+                          {lvl}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 600, color: 'var(--text)' }}>
+                          {x.kind}{x.stage ? ` · Stage: ${x.stage}` : ''}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                          {info.consequence}
+                        </div>
+                      </td>
+                      <td style={{ maxWidth: 240 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Building2 size={13} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+                          <button
+                            className="btn-ghost"
+                            onClick={() => handleNavigateApp(x)}
+                            style={{
+                              padding: 0,
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--primary)',
+                              fontWeight: 600,
+                              textAlign: 'left',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                            title="Open related record"
+                          >
+                            <span className="truncate">{x.inst}</span>
+                            <ExternalLink size={11} />
+                          </button>
+                        </div>
+                        {x.appId && (
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                            Application ID: {x.appId}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <span className="chip chip-grey">{x.reg}</span>
+                      </td>
+                      <td>
+                        <StatusChip days={x.d} />
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
+                          {lvl === 'L3' && (
+                            <button
+                              className="btn btn-xs btn-primary"
+                              onClick={() => setSelectedEscalation({ item: x, actionType: 'show-cause' })}
+                              style={{ background: 'var(--red)', borderColor: 'var(--red)', gap: 4 }}
+                            >
+                              <Send size={11} /> Issue Show-Cause
+                            </button>
+                          )}
+                          {lvl === 'L2' && (
+                            <button
+                              className="btn btn-xs btn-secondary"
+                              onClick={() => setSelectedEscalation({ item: x, actionType: 'ro-warning' })}
+                              style={{ gap: 4 }}
+                            >
+                              <AlertTriangle size={11} style={{ color: 'var(--amber)' }} /> Directive to RO
+                            </button>
+                          )}
+                          {lvl === 'L1' && (
+                            <button
+                              className="btn btn-xs btn-ghost"
+                              onClick={() => setSelectedEscalation({ item: x, actionType: 'reminder' })}
+                              style={{ gap: 4 }}
+                            >
+                              <Send size={11} /> Send Reminder
+                            </button>
+                          )}
+                          <button
+                            className="btn btn-xs btn-ghost"
+                            onClick={() => handleNavigateApp(x)}
+                            title="Navigate to application details"
+                          >
+                            <ArrowRight size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Statutory Escalation Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!selectedEscalation}
+        onClose={() => setSelectedEscalation(null)}
+        onConfirm={handleConfirmAction}
+        title={
+          selectedEscalation?.actionType === 'show-cause'
+            ? 'Issue Statutory Show-Cause Notice'
+            : selectedEscalation?.actionType === 'ro-warning'
+            ? 'Issue Regional Officer Directive'
+            : 'Send Institutional Reminder'
+        }
+        message={
+          selectedEscalation && (
+            <>
+              {selectedEscalation.actionType === 'show-cause' && (
+                <>
+                  Are you sure you want to issue a formal <strong>Show-Cause Notice</strong> under AICTE Act regulations to <strong>{selectedEscalation.item.inst}</strong>? This will notify the Bureau Head, log the incident in the National Audit Trail, and mandate a 48-hour response window.
+                </>
+              )}
+              {selectedEscalation.actionType === 'ro-warning' && (
+                <>
+                  Issue an expedited resolution directive to the <strong>{selectedEscalation.item.reg} Regional Officer</strong> regarding <strong>{selectedEscalation.item.inst}</strong>?
+                </>
+              )}
+              {selectedEscalation.actionType === 'reminder' && (
+                <>
+                  Dispatch an automated reminder notification to <strong>{selectedEscalation.item.inst}</strong> for compliance with <em>{selectedEscalation.item.kind}</em>?
+                </>
+              )}
+            </>
+          )
+        }
+        confirmLabel={
+          isActionExecuting
+            ? 'Dispatching…'
+            : selectedEscalation?.actionType === 'show-cause'
+            ? 'Dispatch Show-Cause Notice'
+            : selectedEscalation?.actionType === 'ro-warning'
+            ? 'Issue Directive'
+            : 'Send Reminder'
+        }
+      />
     </div>
   );
 }

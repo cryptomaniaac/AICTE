@@ -13,6 +13,8 @@ interface DonutProps {
   total: number;
   active: string | null;
   onSelect: (key: string) => void;
+  highlightedKey?: string | null;
+  onHover?: (key: string | null) => void;
 }
 
 const SIZE = 216;
@@ -25,12 +27,12 @@ const GAP = 8; // px between rounded-cap segments
  * Hand-written SVG donut gauge: thick ring, rounded caps, donut shades.
  * The centre shows the total; the legend below filters the attention table.
  */
-export function Donut({ slices, total, active, onSelect }: DonutProps) {
+export function Donut({ slices, total, active, onSelect, highlightedKey, onHover }: DonutProps) {
   const visible = slices.filter(s => s.value > 0);
   let offset = 0;
 
   return (
-    <div className="donut">
+    <div className="donut" onMouseLeave={() => onHover?.(null)}>
       <div className="donut-ring">
         <svg
           width={SIZE}
@@ -54,6 +56,7 @@ export function Donut({ slices, total, active, onSelect }: DonutProps) {
               const share = slice.value / Math.max(1, total);
               const len = share * CIRC;
               const dash = Math.max(2, len - GAP);
+              const isRing = highlightedKey === slice.key;
               const segment = (
                 <circle
                   key={slice.key}
@@ -62,13 +65,15 @@ export function Donut({ slices, total, active, onSelect }: DonutProps) {
                   r={R}
                   fill="none"
                   stroke={slice.color}
-                  strokeWidth={STROKE}
+                  strokeWidth={isRing ? STROKE + 4 : STROKE}
                   strokeLinecap="round"
                   strokeDasharray={`${dash} ${CIRC - dash}`}
                   strokeDashoffset={-offset}
                   opacity={active && active !== slice.key ? 0.35 : 1}
-                  style={{ transition: 'opacity .15s', cursor: 'pointer' }}
+                  className={isRing ? 'donut-slice-ring' : ''}
+                  style={{ transition: 'opacity .15s, stroke-width .15s', cursor: 'pointer' }}
                   onClick={() => onSelect(slice.key)}
+                  onMouseEnter={() => onHover?.(slice.key)}
                 >
                   <title>{`${slice.label}: ${slice.value} (${(share * 100).toFixed(1)}%)`}</title>
                 </circle>
