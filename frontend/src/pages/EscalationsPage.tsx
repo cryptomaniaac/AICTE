@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import {
   Bell, Play, AlertOctagon, AlertTriangle, Clock,
   Send, Building2, ExternalLink, Filter, Search,
-  Download, ArrowRight,
+  Download, ArrowRight, RotateCcw, X,
 } from 'lucide-react';
 import { useApp, alertLevel } from '../context/AppContext';
 import { StatusChip } from '../components/shared/StatusChip';
@@ -67,6 +67,13 @@ export function EscalationsPage() {
   }), [urgencyItems]);
 
   const totalEscalations = urgencyItems.length;
+
+  const counts = useMemo(() => ({
+    all: totalEscalations,
+    l3: grouped.L3.length,
+    l2: grouped.L2.length,
+    l1: grouped.L1.length,
+  }), [totalEscalations, grouped]);
 
   // Regional breakdown
   const regionBreakdown = useMemo(() => {
@@ -290,54 +297,98 @@ export function EscalationsPage() {
       </div>
 
       {/* Filter and Search Toolbar */}
-      <div className="panel" style={{ padding: '14px 18px', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          {/* Level Filter Buttons */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>Severity:</span>
-            {(['all', 'L3', 'L2', 'L1'] as const).map(lvl => (
-              <button
-                key={lvl}
-                className={`btn btn-xs ${levelFilter === lvl ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => setLevelFilter(lvl)}
-                style={{ borderRadius: 6, fontWeight: levelFilter === lvl ? 600 : 500 }}
-              >
-                {lvl === 'all' ? 'All Severities' : lvl}
-              </button>
-            ))}
+      <div className="panel" style={{ padding: '12px 18px', marginBottom: 14 }}>
+        <div className="filter-toolbar">
+          {/* Level Filter Pills */}
+          <div className="severity-pill-group">
+            <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, marginRight: 2 }}>Severity:</span>
+
+            <button
+              className={`severity-pill ${levelFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setLevelFilter('all')}
+              title="Show all active regulatory items"
+            >
+              <span>All Severities</span>
+              <span className="pill-count">{counts.all}</span>
+            </button>
+
+            <button
+              className={`severity-pill pill-l3 ${levelFilter === 'L3' ? 'active' : ''}`}
+              onClick={() => setLevelFilter('L3')}
+              title="Filter by Level 3 Critical Breaches (>7 days overdue)"
+            >
+              <span>L3 — Critical</span>
+              <span className="pill-count">{counts.l3}</span>
+            </button>
+
+            <button
+              className={`severity-pill pill-l2 ${levelFilter === 'L2' ? 'active' : ''}`}
+              onClick={() => setLevelFilter('L2')}
+              title="Filter by Level 2 Overdue Threshold (1-7 days overdue)"
+            >
+              <span>L2 — Overdue</span>
+              <span className="pill-count">{counts.l2}</span>
+            </button>
+
+            <button
+              className={`severity-pill pill-l1 ${levelFilter === 'L1' ? 'active' : ''}`}
+              onClick={() => setLevelFilter('L1')}
+              title="Filter by Level 1 Approaching SLA Deadlines (within 15 days)"
+            >
+              <span>L1 — Due Soon</span>
+              <span className="pill-count">{counts.l1}</span>
+            </button>
           </div>
 
-          {/* Region and Search Inputs */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* Region, Search, and Reset Controls */}
+          <div className="filter-controls-group">
+            <div className="filter-select-wrapper">
               <Filter size={13} style={{ color: 'var(--muted)' }} />
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>Region:</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>Region:</span>
               <select
-                className="select select-sm"
+                className="filter-custom-select"
                 value={regionFilter}
                 onChange={e => setRegionFilter(e.target.value)}
-                style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6 }}
+                aria-label="Filter by AICTE Region"
               >
                 {regions.map(r => (
-                  <option key={r} value={r}>{r}</option>
+                  <option key={r} value={r}>{r === 'All' ? 'All Regions' : r}</option>
                 ))}
               </select>
             </div>
 
-            <div style={{ position: 'relative', width: 220 }}>
-              <Search
-                size={12}
-                style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }}
-              />
+            <div className="filter-search-box">
+              <Search size={13} className="filter-search-icon" />
               <input
-                type="search"
-                className="input input-sm"
+                type="text"
+                className="filter-search-input"
                 placeholder="Filter institution or item…"
                 value={localSearch}
                 onChange={e => setLocalSearch(e.target.value)}
-                style={{ paddingLeft: 26, fontSize: 12, width: '100%', borderRadius: 6 }}
+                aria-label="Filter institution or item"
               />
+              {localSearch && (
+                <button
+                  type="button"
+                  className="filter-search-clear"
+                  onClick={() => setLocalSearch('')}
+                  aria-label="Clear search"
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
+
+            {(levelFilter !== 'all' || regionFilter !== 'All' || localSearch) && (
+              <button
+                className="btn btn-ghost btn-xs"
+                onClick={() => { setLevelFilter('all'); setRegionFilter('All'); setLocalSearch(''); }}
+                style={{ fontSize: 11, color: 'var(--muted)', gap: 4, height: 32 }}
+                title="Reset all filters to default"
+              >
+                <RotateCcw size={11} /> Reset
+              </button>
+            )}
           </div>
         </div>
       </div>

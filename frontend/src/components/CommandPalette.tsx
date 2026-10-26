@@ -3,6 +3,7 @@ import {
   Search, LayoutDashboard, FileText, Users, ClipboardCheck,
   FileSignature, Bell, ScrollText, Play, Moon, Sun, Zap,
   Building2, Sparkles, HelpCircle, History, RotateCcw, FastForward,
+  Settings, LifeBuoy,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { NavPage } from '../types';
@@ -22,6 +23,8 @@ interface CommandPaletteProps {
   onOpenTour?: () => void;
   onOpenShortcuts?: () => void;
   onToggleReducedMotion?: () => void;
+  onOpenSettings?: () => void;
+  onOpenHelpCenter?: () => void;
 }
 
 const PAGE_ITEMS: { id: NavPage; label: string; icon: React.ElementType }[] = [
@@ -39,6 +42,8 @@ export function CommandPalette({
   onOpenTour,
   onOpenShortcuts,
   onToggleReducedMotion,
+  onOpenSettings,
+  onOpenHelpCenter,
 }: CommandPaletteProps) {
   const {
     setPage,
@@ -154,6 +159,20 @@ export function CommandPalette({
         action: () => { setTimeTravelDays(14); onClose(); },
       },
       {
+        id: 'settings',
+        label: 'System Settings & Preferences',
+        sub: 'Configuration',
+        icon: Settings,
+        action: () => { onClose(); onOpenSettings?.(); },
+      },
+      {
+        id: 'help-center',
+        label: 'AICTE Help Center & Regulatory Handbook',
+        sub: 'Help',
+        icon: LifeBuoy,
+        action: () => { onClose(); onOpenHelpCenter?.(); },
+      },
+      {
         id: 'reset-demo',
         label: 'Reset All Demonstration Records',
         sub: 'Simulation',
@@ -193,6 +212,8 @@ export function CommandPalette({
     onOpenTour,
     onOpenShortcuts,
     onToggleReducedMotion,
+    onOpenSettings,
+    onOpenHelpCenter,
     setTimeTravelDays,
     resetDemoData,
     apps,

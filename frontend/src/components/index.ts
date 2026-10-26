@@ -9,4 +9,6 @@ export { Heatmap } from './Heatmap';
 export { HintChip } from './HintChip';
 export { ContextMenu } from './ContextMenu';
 export { HoverCard } from './HoverCard';
+export { SettingsModal } from './SettingsModal';
+export { HelpCenterModal } from './HelpCenterModal';
 export { ThreeBackdrop } from './ThreeBackdrop';

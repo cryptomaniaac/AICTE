@@ -255,10 +255,10 @@ export function AuditTrailPage() {
               <User size={13} style={{ color: 'var(--muted)' }} />
               <span style={{ fontSize: 12, color: 'var(--muted)' }}>Actor:</span>
               <select
-                className="select select-sm"
+                className="filter-custom-select"
                 value={actorFilter}
                 onChange={e => setActorFilter(e.target.value)}
-                style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6 }}
+                aria-label="Filter by actor"
               >
                 <option value="">All Actors</option>
                 {actors.map(a => (
@@ -267,18 +267,15 @@ export function AuditTrailPage() {
               </select>
             </div>
 
-            <div style={{ position: 'relative', width: 220 }}>
-              <Search
-                size={12}
-                style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }}
-              />
+            <div className="filter-search-box">
+              <Search size={13} className="filter-search-icon" />
               <input
-                type="search"
-                className="input input-sm"
+                type="text"
+                className="filter-search-input"
                 placeholder="Search audit trail…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                style={{ paddingLeft: 26, fontSize: 12, width: '100%', borderRadius: 6 }}
+                aria-label="Search audit trail"
               />
             </div>
 

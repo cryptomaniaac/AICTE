@@ -53,9 +53,20 @@ interface SidebarProps {
   onMobileClose: () => void;
   reducedMotion: boolean;
   onToggleMotion: () => void;
+  onOpenSettings?: () => void;
+  onOpenHelpCenter?: () => void;
 }
 
-export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMobileClose, reducedMotion, onToggleMotion }: SidebarProps) {
+export function Sidebar({
+  collapsed,
+  onToggleCollapse,
+  mobileOpen,
+  onMobileClose,
+  reducedMotion,
+  onToggleMotion,
+  onOpenSettings,
+  onOpenHelpCenter,
+}: SidebarProps) {
   const ctx = useApp();
   const { page, setPage, theme, setTheme } = ctx;
 
@@ -171,7 +182,18 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMobileClose
               <button
                 key={item.label}
                 className={`sidebar-item other-item ${collapsed ? 'collapsed-item' : ''}`}
-                onClick={() => { if (item.label === 'APH Rules') { ctx.setIsAphModalOpen(true); onMobileClose(); } }}
+                onClick={() => {
+                  if (item.label === 'APH Rules') {
+                    ctx.setIsAphModalOpen(true);
+                    onMobileClose();
+                  } else if (item.label === 'Settings') {
+                    onOpenSettings?.();
+                    onMobileClose();
+                  } else if (item.label === 'Help Center') {
+                    onOpenHelpCenter?.();
+                    onMobileClose();
+                  }
+                }}
                 aria-label={item.label}
                 title={collapsed ? item.label : undefined}
               >

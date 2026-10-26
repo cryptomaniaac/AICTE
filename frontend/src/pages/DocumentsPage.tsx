@@ -303,15 +303,15 @@ export function DocumentsPage() {
           {/* Region and Sorting Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>Region:</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>Region:</span>
               <select
-                className="select select-sm"
+                className="filter-custom-select"
                 value={regionFilter}
                 onChange={e => setRegionFilter(e.target.value)}
-                style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6 }}
+                aria-label="Filter documents by region"
               >
                 {regions.map(r => (
-                  <option key={r} value={r}>{r}</option>
+                  <option key={r} value={r}>{r === 'All' ? 'All Regions' : r}</option>
                 ))}
               </select>
             </div>

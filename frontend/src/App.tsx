@@ -15,6 +15,8 @@ import {
   CommandPalette,
   GuidedTour,
   ShortcutsModal,
+  SettingsModal,
+  HelpCenterModal,
 } from './components';
 
 /** Sync reduced-motion preference to document root attribute */
@@ -55,6 +57,8 @@ function AppShell() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [helpCenterOpen, setHelpCenterOpen] = useState(false);
   const { reduced, toggle: toggleMotion } = useReducedMotion();
 
   // Page-transition key so the wrapper re-mounts on navigation
@@ -162,6 +166,8 @@ function AppShell() {
         onMobileClose={() => setMobileOpen(false)}
         reducedMotion={reduced}
         onToggleMotion={toggleMotion}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenHelpCenter={() => setHelpCenterOpen(true)}
       />
 
       {/* Main area */}
@@ -192,6 +198,25 @@ function AppShell() {
         role={role}
       />
 
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        reducedMotion={reduced}
+        onToggleMotion={toggleMotion}
+        onOpenAphRules={() => setIsAphModalOpen(true)}
+        onOpenTour={() => { setPage('ov'); setTourOpen(true); }}
+      />
+
+      {/* Help Center Modal */}
+      <HelpCenterModal
+        isOpen={helpCenterOpen}
+        onClose={() => setHelpCenterOpen(false)}
+        onOpenTour={() => { setPage('ov'); setTourOpen(true); }}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
+        onOpenAphRules={() => setIsAphModalOpen(true)}
+      />
+
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
@@ -202,6 +227,8 @@ function AppShell() {
           onOpenTour={() => setTourOpen(true)}
           onOpenShortcuts={() => setShortcutsOpen(true)}
           onToggleReducedMotion={toggleMotion}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenHelpCenter={() => setHelpCenterOpen(true)}
         />
       )}
 

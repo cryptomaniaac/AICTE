@@ -190,14 +190,13 @@ export function useApp(): AppContextValue {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Theme ──────────────────────────────────────────────────────────────────
   const [theme, setTheme] = useState<Theme>(() => {
-    const stored = localStorage.getItem('aicte-theme');
-    if (stored === 'dark' || stored === 'light') return stored;
-    // First load: respect the system preference
     try {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      const stored = localStorage.getItem('aicte-theme');
+      if (stored === 'dark' || stored === 'light') return stored;
     } catch {
-      return 'light';
+      /* ignore */
     }
+    return 'light';
   });
 
   useEffect(() => {

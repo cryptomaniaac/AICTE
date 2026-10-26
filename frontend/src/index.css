@@ -1797,11 +1797,12 @@ body {
 }
 
 /* ── 17. FORM CONTROLS ────────────────────────────────────── */
-.form-input {
+.form-input,
+.input {
   width: 100%;
   height: 36px;
   padding: 0 10px;
-  background: var(--bg);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text);
@@ -1810,15 +1811,23 @@ body {
   transition: border-color .15s, box-shadow .15s;
 }
 
-.form-input:focus {
+.input-sm {
+  height: 32px;
+  font-size: 12px;
+  padding: 0 8px;
+}
+
+.form-input:focus,
+.input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(37,99,235,.12);
 }
 
-.form-select {
+.form-select,
+.select {
   height: 36px;
   padding: 0 28px 0 10px;
-  background: var(--bg);
+  background-color: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text);
@@ -1826,14 +1835,23 @@ body {
   cursor: pointer;
   outline: none;
   appearance: none;
+  -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 8px center;
   transition: border-color .15s;
 }
 
-.form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
-.form-select option { background: var(--surface); color: var(--text); }
+.select-sm {
+  height: 32px;
+  font-size: 12px;
+  padding: 0 26px 0 8px;
+}
+
+.form-select:focus,
+.select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+.form-select option,
+.select option { background: var(--surface); color: var(--text); }
 
 .form-label { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 4px; display: block; }
 .form-hint { font-size: 11px; color: var(--muted); margin-top: 3px; }
@@ -3024,11 +3042,223 @@ kbd.shortcut-key {
 }
 
 /* ── Mobile Touch Targets ──────────────────────────────────── */
-@media (max-width: 768px) {
-  button, .icon-btn, .btn, [role="button"] {
-    min-height: 40px;
-    min-width: 40px;
-  }
+/* ── Filter Toolbar & Severity Pills ────────────────────────── */
+.filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.severity-pill-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.severity-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.severity-pill:hover {
+  background: var(--surface-2);
+  border-color: var(--border-2);
+  color: var(--text);
+}
+
+.severity-pill.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.22);
+}
+
+.severity-pill.pill-l3 {
+  color: var(--red);
+  background: var(--surface);
+}
+.severity-pill.pill-l3:hover {
+  background: var(--red-bg);
+  border-color: var(--red-border);
+}
+.severity-pill.pill-l3.active {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(220, 38, 38, 0.3);
+}
+
+.severity-pill.pill-l2 {
+  color: var(--amber);
+  background: var(--surface);
+}
+.severity-pill.pill-l2:hover {
+  background: var(--amber-bg);
+  border-color: var(--amber-border);
+}
+.severity-pill.pill-l2.active {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(217, 119, 6, 0.3);
+}
+
+.severity-pill.pill-l1 {
+  color: var(--blue);
+  background: var(--surface);
+}
+.severity-pill.pill-l1:hover {
+  background: var(--blue-bg);
+  border-color: var(--blue-border);
+}
+.severity-pill.pill-l1.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.3);
+}
+
+.pill-count {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.06);
+  color: inherit;
+  line-height: 1.2;
+}
+
+[data-theme="dark"] .pill-count,
+[data-theme="abyss"] .pill-count {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.severity-pill.active .pill-count {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+/* ── Filter Controls (Region & Search) ────────────────────── */
+.filter-controls-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-select-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-custom-select {
+  height: 32px;
+  padding: 0 28px 0 10px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.filter-custom-select:hover {
+  border-color: var(--border-2);
+}
+
+.filter-custom-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.filter-search-box {
+  position: relative;
+  width: 230px;
+  display: flex;
+  align-items: center;
+}
+
+.filter-search-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 28px 0 30px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.filter-search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.filter-search-icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.filter-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  padding: 3px;
+  cursor: pointer;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.filter-search-clear:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+/* ── Compact Density Mode ──────────────────────────────────── */
+html.density-compact .data-table td,
+html.density-compact .data-table th,
+html.density-compact .table td,
+html.density-compact .table th {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  font-size: 12px !important;
 }
 
 
