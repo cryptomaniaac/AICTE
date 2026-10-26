@@ -45,7 +45,7 @@ frontend/.vite/
 # Environment & credentials
 .env
 .env.*
-!.env.example
+!**/.env.example
 *.pem
 *.key
 
