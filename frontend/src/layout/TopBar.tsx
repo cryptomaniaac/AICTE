@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Bell, Menu, Search, Command, Play, Pause, Sparkles, RefreshCw, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import api from '../api';
 
 const PAGE_TITLES: Record<string, string> = {
   ov: 'Overview',
@@ -217,41 +218,45 @@ export function TopBar({
                   </span>
                 </div>
                 <div className="live-popover-actions">
-                  {!isLive && (
-                    <>
-                      <button
-                        className="btn btn-secondary btn-xs"
-                        style={{ width: '100%', justifyContent: 'flex-start' }}
-                        onClick={() => {
-                          setSimulationActive(a => !a);
-                        }}
-                      >
-                        {simulationActive ? <Pause size={12} /> : <Play size={12} />}
-                        {simulationActive ? 'Pause Simulation' : 'Resume Simulation'}
-                      </button>
-                      <button
-                        className="btn btn-secondary btn-xs"
-                        style={{ width: '100%', justifyContent: 'flex-start' }}
-                        onClick={() => {
+                  <button
+                    className="btn btn-secondary btn-xs"
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                    onClick={() => {
+                      setSimulationActive(a => !a);
+                    }}
+                  >
+                    {simulationActive ? <Pause size={12} /> : <Play size={12} />}
+                    {simulationActive ? 'Pause Background Events' : 'Start Auto Events'}
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-xs"
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                    onClick={async () => {
+                      if (isLive) {
+                        try {
+                          await api.triggerSimulatedBackendEvent();
+                        } catch {
                           triggerSimulatedEvent();
-                        }}
-                      >
-                        <Sparkles size={12} />
-                        Simulate Event Now
-                      </button>
-                      <button
-                        className="btn btn-secondary btn-xs"
-                        style={{ width: '100%', justifyContent: 'flex-start' }}
-                        onClick={() => {
-                          resetDemoData();
-                          setShowLiveMenu(false);
-                        }}
-                      >
-                        <RefreshCw size={12} />
-                        Reset All Demo Records
-                      </button>
-                    </>
-                  )}
+                        }
+                      } else {
+                        triggerSimulatedEvent();
+                      }
+                    }}
+                  >
+                    <Sparkles size={12} />
+                    Simulate Event Now
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-xs"
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                    onClick={() => {
+                      resetDemoData();
+                      setShowLiveMenu(false);
+                    }}
+                  >
+                    <RefreshCw size={12} />
+                    Reset All Demo Records
+                  </button>
                 </div>
               </div>
             )}

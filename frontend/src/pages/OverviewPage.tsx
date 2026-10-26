@@ -57,9 +57,21 @@ function KpiCell({
   context: string; active: boolean; onClick: () => void; helpText?: string;
 }) {
   const displayed = useCountUp(value);
+  const [pulse, setPulse] = useState(false);
+  const prevVal = useRef(value);
+
+  useEffect(() => {
+    if (prevVal.current !== value) {
+      prevVal.current = value;
+      setPulse(true);
+      const timer = setTimeout(() => setPulse(false), 2400);
+      return () => clearTimeout(timer);
+    }
+  }, [value]);
+
   return (
     <button
-      className={`kpi-cell${active ? ' active' : ''}`}
+      className={`kpi-cell${active ? ' active' : ''}${pulse ? ' kpi-updated-pulse' : ''}`}
       onClick={onClick}
       aria-pressed={active}
       aria-label={`${label}: ${value}. ${helpText || ''}`}
@@ -67,7 +79,10 @@ function KpiCell({
     >
       <div className="kpi-icon" aria-hidden="true"><Icon size={16} /></div>
       <span className="kpi-cell-label">{label}</span>
-      <span className="kpi-cell-number tabnum">{displayed}</span>
+      <span className="kpi-cell-number tabnum">
+        {displayed}
+        {pulse && <span className="kpi-pulse-dot" />}
+      </span>
       <span className="kpi-cell-context">{context}</span>
     </button>
   );
@@ -434,6 +449,7 @@ function AttentionTable({
   onAdvance, onUndertakingAction, onDocumentAction,
   actionLoading, getDaysLeft, apps, LOG, handleReturn,
   onClearHeat, onClearDonut, onClearKpi, onClearBrush,
+  recentlyUpdatedId,
 }: {
   items: UrgencyItem[];
   heatFilter: HeatSelection | null;
@@ -456,6 +472,7 @@ function AttentionTable({
   onClearDonut: () => void;
   onClearKpi: () => void;
   onClearBrush: () => void;
+  recentlyUpdatedId?: string | null;
 }) {
   const [levelFilter, setLevelFilter] = useState<LevelFilter>('All');
   const [instFilter, setInstFilter] = useState<string | null>(null);
@@ -548,7 +565,20 @@ function AttentionTable({
     }
   };
 
-  const sorted = useMemo(() => needsAttentionItems(items), [items]);
+  const sorted = useMemo(() => {
+    const list = needsAttentionItems(items);
+    if (!recentlyUpdatedId) return list;
+    const matchIdx = list.findIndex(x =>
+      x.appId === recentlyUpdatedId ||
+      (x.recordId !== undefined && (`un-${x.recordId}` === recentlyUpdatedId || `doc-${x.recordId}` === recentlyUpdatedId))
+    );
+    if (matchIdx > 0) {
+      const updated = [...list];
+      const [matched] = updated.splice(matchIdx, 1);
+      return [matched, ...updated];
+    }
+    return list;
+  }, [items, recentlyUpdatedId]);
 
   const filtered = useMemo(() => {
     let list = [...sorted];
@@ -924,11 +954,15 @@ function AttentionTable({
                 const appRec = item.appId ? apps.find(a => a.id === item.appId) : null;
                 const instApps = apps.filter(a => a.inst === item.inst);
                 const instOverdue = instApps.filter(a => getDaysLeft(a) < 0).length;
+                const isRecentlyUpdated = !!recentlyUpdatedId && (
+                  item.appId === recentlyUpdatedId ||
+                  (item.recordId !== undefined && (`un-${item.recordId}` === recentlyUpdatedId || `doc-${item.recordId}` === recentlyUpdatedId))
+                );
 
                 return (
                   <Fragment key={rowKey}>
                     <tr
-                      className={`clickable ${isSelected ? 'row-highlighted' : ''} ${isHighlighted ? 'row-highlighted' : ''} ${isDimmed ? 'row-dimmed' : ''}`}
+                      className={`clickable ${isSelected ? 'row-highlighted' : ''} ${isHighlighted ? 'row-highlighted' : ''} ${isDimmed ? 'row-dimmed' : ''} ${isRecentlyUpdated ? 'recently-updated-row' : ''}`}
                       onClick={e => handleRowClick(e, item, idx)}
                       onContextMenu={e => handleContextMenu(e, item, idx)}
                       onMouseEnter={() => onHoverRow({ region: item.reg, stage: item.stage || item.kind, day: Math.floor(item.d) })}
@@ -960,11 +994,16 @@ function AttentionTable({
 
                       {cols.item && (
                         <td>
-                          <span className="cell-title">
+                          <span className="cell-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             {item.kind === 'Stage' ? `${item.stage ?? ''} review`
                               : item.kind === 'EVC' ? 'Expert visit due'
                               : item.kind === 'Undertaking' ? 'Undertaking pending'
                               : 'Document expiring'}
+                            {isRecentlyUpdated && (
+                              <span className="chip-updated-pill pulse-badge">
+                                UPDATED
+                              </span>
+                            )}
                           </span>
                           <span className="cell-sub">{item.kind} · {item.appId ?? `#${item.recordId}`}</span>
                         </td>
@@ -1213,6 +1252,9 @@ export function OverviewPage() {
     handleSweep, actionLoading, LOG,
     setPage, setPendingAppsFilter,
     dataReady, showToast,
+    latestLiveEvent, setLatestLiveEvent,
+    recentlyUpdatedId,
+    setPendingDrawerAppId,
   } = useApp();
 
   const [kpiFilter, setKpiFilter] = useState<string | null>(null);
@@ -1348,6 +1390,47 @@ export function OverviewPage() {
         <span><strong>Pro-Tip:</strong> Click any KPI cell, Donut slice, or Heatmap block to filter the Attention Queue below. Keyboard shortcut: <kbd>?</kbd> for cheat-sheet, <kbd>⌘K</kbd> for commands.</span>
       </HintChip>
 
+      {/* Real-time Activity Banner */}
+      {latestLiveEvent && (
+        <div className="live-event-banner" role="status" aria-live="polite">
+          <div className="live-banner-left">
+            <div className="live-badge">
+              <span className="live-pulse-dot" />
+              <span>LIVE REGULATORY EVENT</span>
+            </div>
+            <div className="live-banner-content">
+              <span className="live-banner-title">{latestLiveEvent.title}</span>
+              <span className="live-banner-desc">{latestLiveEvent.desc}</span>
+            </div>
+            <span className="live-banner-time">{latestLiveEvent.timestamp}</span>
+          </div>
+          <div className="live-banner-actions">
+            {latestLiveEvent.appId && (
+              <button
+                className="btn btn-primary btn-xs"
+                onClick={() => {
+                  if (latestLiveEvent.appId) {
+                    setPendingDrawerAppId(latestLiveEvent.appId);
+                    setPage('ap');
+                  }
+                }}
+              >
+                Inspect Application <ArrowRight size={12} />
+              </button>
+            )}
+            <button
+              className="icon-btn"
+              style={{ width: 24, height: 24, padding: 0 }}
+              onClick={() => setLatestLiveEvent(null)}
+              title="Dismiss banner"
+              aria-label="Dismiss banner"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Row 1: KPI + Heatmap */}
       <div className="overview-top">
         <div className="panel kpi-panel">
@@ -1459,6 +1542,7 @@ export function OverviewPage() {
           onClearDonut={() => setDonutStage(null)}
           onClearKpi={() => setKpiFilter(null)}
           onClearBrush={() => setBrushFilter(null)}
+          recentlyUpdatedId={recentlyUpdatedId}
         />
       </div>
 

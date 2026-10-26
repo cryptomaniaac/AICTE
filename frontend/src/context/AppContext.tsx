@@ -32,7 +32,17 @@ import type {
 
 export const STATUS_LABELS = ['Pending', 'Submitted', 'Verified'];
 
-/** Filter payload used for deep-links from Overview cards/rows to Applications. */
+export interface LiveEventSummary {
+  id: string;
+  type: 'app_new' | 'stage_adv' | 'doc_upload' | 'sla_warning' | 'evc_clear' | 'general';
+  title: string;
+  desc: string;
+  timestamp: string;
+  appId?: string;
+  recordId?: string;
+  inst?: string;
+}
+
 export interface AppsLinkFilter {
   region?: string;
   stage?: string;
@@ -118,6 +128,9 @@ interface AppContextValue {
   bellUnreadCount: number;
   clearBellCount: () => void;
   recentlyUpdatedId: string | null;
+  setRecentlyUpdatedId: (id: string | null) => void;
+  latestLiveEvent: LiveEventSummary | null;
+  setLatestLiveEvent: (e: LiveEventSummary | null) => void;
 
   // Time Travel
   timeTravelDays: number;
@@ -256,7 +269,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Time travel & Live simulation ──────────────────────────────────────────
   const [timeTravelDays, setTimeTravelDaysState] = useState(0);
-  const [simulationActive, setSimulationActive] = useState(true);
+  const [simulationActive, setSimulationActive] = useState(false);
+  const [latestLiveEvent, setLatestLiveEvent] = useState<LiveEventSummary | null>(null);
   const [lastUpdatedTimestamp, setLastUpdatedTimestamp] = useState(() => Date.now());
   const [bellUnreadCount, setBellUnreadCount] = useState(0);
   const clearBellCount = useCallback(() => setBellUnreadCount(0), []);
@@ -637,7 +651,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const triggerSimulatedEvent = useCallback(() => {
     const eventPool = [
-      // 0: New application
+      // 0: New application (6d SLA left, lands in Heatmap column +6 and L1 Attention queue)
       () => {
         const newId = `A-${2623 + Math.floor(Math.random() * 80)}`;
         const names = [
@@ -646,6 +660,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           'Bhopal Engineering Campus',
           'National Polytechnic Guwahati',
           'Sikkim Manipal Institute of Technology',
+          'Dharwad Polytechnic Institute',
+          'Amrita School of Technology',
         ];
         const instName = names[Math.floor(Math.random() * names.length)];
         const regions = ['East', 'South', 'West', 'North'];
@@ -656,18 +672,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           reg,
           rt: 'SE',
           i: 0,
-          age: 1,
+          age: 9, // Scrutiny SLA 15 -> daysLeft = 6d (visible in Heatmap col +6 and attention queue)
           evc: 0,
         };
         setA(prev => [newApp, ...prev]);
         setRecentlyUpdatedId(newId);
-        const desc = `New application submitted: ${newId} (${instName}) via Route SE`;
+        const desc = `New application submitted: ${newId} (${instName}) via Route SE · 6d left in Scrutiny`;
         setLOG(prev => [{ t: new Date().toLocaleTimeString(), who: 'Online Portal', x: desc }, ...prev]);
         setBellUnreadCount(c => c + 1);
         setLastUpdatedTimestamp(Date.now());
+        setLatestLiveEvent({
+          id: newId,
+          type: 'app_new',
+          title: `New Application: ${newId}`,
+          desc: `${instName} (${reg} Region) submitted under Route SE · 6d SLA horizon`,
+          timestamp: new Date().toLocaleTimeString(),
+          appId: newId,
+          inst: instName,
+        });
         showToast('New Application Received', `${instName} submitted ${newId}`, 'info');
       },
-      // 1: Document uploaded
+      // 1: Document uploaded (decrements Docs Expiring KPI)
       () => {
         const pendingDoc = D.find(d => d.s === 0);
         if (pendingDoc) {
@@ -678,10 +703,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setLOG(prev => [{ t: new Date().toLocaleTimeString(), who: 'Institution', x: desc }, ...prev]);
           setBellUnreadCount(c => c + 1);
           setLastUpdatedTimestamp(Date.now());
+          setLatestLiveEvent({
+            id: `doc-${pendingDoc.id}`,
+            type: 'doc_upload',
+            title: `Compliance Document Uploaded`,
+            desc: `${pendingDoc.inst} submitted verified ${pendingDoc.t}`,
+            timestamp: new Date().toLocaleTimeString(),
+            recordId: String(pendingDoc.id),
+            inst: pendingDoc.inst,
+          });
           showToast('Document Uploaded', `${pendingDoc.inst} submitted ${pendingDoc.t}`, 'info');
         }
       },
-      // 2: Inspection completed
+      // 2: Inspection cleared / stage advanced
       () => {
         const targetEvc = A.find(a => getStage(a) === 'EVC');
         if (targetEvc) {
@@ -689,26 +723,70 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           targetEvc.age = 0;
           setA([...A]);
           setRecentlyUpdatedId(targetEvc.id);
-          const desc = `EVC Inspection cleared for ${targetEvc.id} (${targetEvc.inst})`;
+          const nextStage = getStage(targetEvc) || 'Completion';
+          const desc = `EVC Inspection cleared for ${targetEvc.id} (${targetEvc.inst}) → advanced to ${nextStage}`;
           setLOG(prev => [{ t: new Date().toLocaleTimeString(), who: 'EVC Committee', x: desc }, ...prev]);
           setBellUnreadCount(c => c + 1);
           setLastUpdatedTimestamp(Date.now());
+          setLatestLiveEvent({
+            id: targetEvc.id,
+            type: 'evc_clear',
+            title: `EVC Inspection Cleared`,
+            desc: `${targetEvc.inst} verified by Expert Committee · advanced to ${nextStage}`,
+            timestamp: new Date().toLocaleTimeString(),
+            appId: targetEvc.id,
+            inst: targetEvc.inst,
+          });
           showToast('Inspection Cleared', `EVC Committee verified ${targetEvc.inst}`, 'success');
         }
       },
-      // 3: Statutory SLA escalation alert
+      // 3: Statutory SLA escalation alert (increments Stage Overdue KPI)
       () => {
         const nearDue = A.find(a => {
-          const left = getDaysLeft(a, aphRules) - timeTravelDays;
-          return left > 0 && left <= 15;
+          const s = getStage(a);
+          return s === 'Scrutiny' && a.age < 15;
         });
         if (nearDue) {
+          nearDue.age = 16; // Now overdue by 1d (L2 Escalation)
+          setA([...A]);
           setRecentlyUpdatedId(nearDue.id);
-          const desc = `Urgent SLA Warning: ${nearDue.id} (${nearDue.inst}) approaching statutory deadline`;
+          const desc = `Statutory SLA Breached: ${nearDue.id} (${nearDue.inst}) is now overdue by 1d (L2 Escalation)`;
           setLOG(prev => [{ t: new Date().toLocaleTimeString(), who: 'Statutory Monitor', x: desc }, ...prev]);
           setBellUnreadCount(c => c + 1);
           setLastUpdatedTimestamp(Date.now());
-          showToast('Statutory Deadline Warning', `${nearDue.inst} has SLA critical window`, 'warn');
+          setLatestLiveEvent({
+            id: nearDue.id,
+            type: 'sla_warning',
+            title: `Statutory SLA Escalation (L2 Alert)`,
+            desc: `${nearDue.inst} exceeded Scrutiny processing window · marked Overdue`,
+            timestamp: new Date().toLocaleTimeString(),
+            appId: nearDue.id,
+            inst: nearDue.inst,
+          });
+          showToast('Statutory Deadline Warning', `${nearDue.inst} is now overdue (L2)`, 'warn');
+        }
+      },
+      // 4: Undertaking cleared (decrements Undertakings At Risk KPI)
+      () => {
+        const pendingUn = U.find(u => u.s === 0);
+        if (pendingUn) {
+          pendingUn.s = 2; // Verified
+          setU([...U]);
+          setRecentlyUpdatedId(`un-${pendingUn.id}`);
+          const desc = `Undertaking Verified: #${pendingUn.id} verified for ${pendingUn.inst}`;
+          setLOG(prev => [{ t: new Date().toLocaleTimeString(), who: 'Compliance Bureau', x: desc }, ...prev]);
+          setBellUnreadCount(c => c + 1);
+          setLastUpdatedTimestamp(Date.now());
+          setLatestLiveEvent({
+            id: `un-${pendingUn.id}`,
+            type: 'general',
+            title: `Undertaking Verified`,
+            desc: `Affidavit verified for ${pendingUn.inst} · risk counter reduced`,
+            timestamp: new Date().toLocaleTimeString(),
+            recordId: String(pendingUn.id),
+            inst: pendingUn.inst,
+          });
+          showToast('Undertaking Cleared', `Affidavit verified for ${pendingUn.inst}`, 'success');
         }
       },
     ];
@@ -717,8 +795,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     simEventIndexRef.current++;
     handler();
 
-    setTimeout(() => setRecentlyUpdatedId(null), 3500);
-  }, [A, D, aphRules, timeTravelDays, showToast]);
+    setTimeout(() => setRecentlyUpdatedId(null), 6000);
+  }, [A, U, D, aphRules, showToast]);
 
   // ── Periodic Live Sync & Heartbeat (every 6 seconds) ──────────────────────
   const lastVersionRef = useRef<number>(1);
@@ -733,6 +811,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (status.version !== lastVersionRef.current) {
           lastVersionRef.current = status.version;
           setLastUpdatedTimestamp(Date.now());
+          if (status.last_event) {
+            setLatestLiveEvent({
+              id: `evt-${status.version}`,
+              type: 'general',
+              title: 'Live Backend Update',
+              desc: status.last_event,
+              timestamp: new Date().toLocaleTimeString(),
+            });
+          }
           await loadRef.current();
         }
       } catch {
@@ -751,7 +838,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // ── Periodic Simulation Timer (runs in both Mock and Live mode) ───────────
+  // ── Periodic Simulation Timer (runs when simulationActive is enabled) ──────
   useEffect(() => {
     if (!simulationActive) return;
     const interval = setInterval(async () => {
@@ -760,6 +847,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const res = await api.triggerSimulatedBackendEvent();
           setLastUpdatedTimestamp(Date.now());
           setBellUnreadCount(c => c + 1);
+          if (res.app_id) {
+            setRecentlyUpdatedId(res.app_id);
+            setTimeout(() => setRecentlyUpdatedId(null), 6000);
+          } else if (res.record_id) {
+            setRecentlyUpdatedId(`doc-${res.record_id}`);
+            setTimeout(() => setRecentlyUpdatedId(null), 6000);
+          }
+          setLatestLiveEvent({
+            id: res.app_id || `evt-${Date.now()}`,
+            type: res.app_id ? 'app_new' : 'general',
+            title: 'Live Regulatory Event',
+            desc: res.event,
+            timestamp: new Date().toLocaleTimeString(),
+            appId: res.app_id,
+          });
           showToast('Live Regulatory Event', res.event, 'info');
           await loadRef.current();
         } catch {
@@ -768,7 +870,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } else {
         triggerSimulatedEvent();
       }
-    }, 26000);
+    }, 28000);
     return () => clearInterval(interval);
   }, [isLive, simulationActive, triggerSimulatedEvent, showToast]);
 
@@ -795,6 +897,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLOG(INITIAL_LOG);
     setTimeTravelDaysState(0);
     setBellUnreadCount(0);
+    setLatestLiveEvent(null);
+    setRecentlyUpdatedId(null);
     setLastUpdatedTimestamp(Date.now());
     showToast('Demo Data Reset', 'All records and timelines restored to default', 'info');
   }, [showToast]);
@@ -808,7 +912,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     triggerSimulatedEvent,
     lastUpdatedTimestamp,
     bellUnreadCount, clearBellCount,
-    recentlyUpdatedId,
+    recentlyUpdatedId, setRecentlyUpdatedId,
+    latestLiveEvent, setLatestLiveEvent,
     timeTravelDays, setTimeTravelDays,
     resetDemoData,
     A, U, D, LOG, aphRules,

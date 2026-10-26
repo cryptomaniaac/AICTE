@@ -9,14 +9,28 @@ const API_BASE =
 export async function checkBackendHealth(): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(3000) });
-    if (res.ok) return true;
+    const ct = res.headers.get('content-type') || '';
+    if (res.ok && ct.includes('application/json')) {
+      const data = await res.json();
+      if (data?.status === 'healthy' || data?.status === 'ok') return true;
+    }
     const fallback = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(3000) });
-    return fallback.ok;
+    const fbType = fallback.headers.get('content-type') || '';
+    if (fallback.ok && fbType.includes('application/json')) {
+      const data = await fallback.json();
+      return data?.status === 'healthy' || data?.status === 'ok';
+    }
+    return false;
   } catch {
     // If proxied path failed, try direct backend port as fallback
     try {
       const direct = await fetch('http://127.0.0.1:8000/api/health', { signal: AbortSignal.timeout(2000) });
-      return direct.ok;
+      const dirType = direct.headers.get('content-type') || '';
+      if (direct.ok && dirType.includes('application/json')) {
+        const data = await direct.json();
+        return data?.status === 'healthy' || data?.status === 'ok';
+      }
+      return false;
     } catch {
       return false;
     }
@@ -26,16 +40,18 @@ export const checkHealth = checkBackendHealth;
 
 export async function getLiveStatus(): Promise<{ status: string; version: number; timestamp: string; last_event: string; total_applications: number }> {
   const res = await fetch(`${API_BASE}/api/live/status`, { signal: AbortSignal.timeout(3000) });
-  if (!res.ok) throw new Error('Failed to fetch live status');
+  const ct = res.headers.get('content-type') || '';
+  if (!res.ok || !ct.includes('application/json')) throw new Error('Live status unavailable or invalid format');
   return res.json();
 }
 
-export async function triggerSimulatedBackendEvent(): Promise<{ status: string; event: string; version: number }> {
+export async function triggerSimulatedBackendEvent(): Promise<{ status: string; event: string; version: number; app_id?: string; record_id?: string }> {
   const res = await fetch(`${API_BASE}/api/triggers/simulated-event`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
   });
-  if (!res.ok) throw new Error('Failed to trigger simulated event');
+  const ct = res.headers.get('content-type') || '';
+  if (!res.ok || !ct.includes('application/json')) throw new Error('Failed to trigger simulated event');
   return res.json();
 }
 
@@ -43,7 +59,8 @@ export async function fetchOverviewMetrics(role?: Role | string): Promise<Overvi
   const url = new URL(`${API_BASE}/api/overview-metrics`);
   if (role) url.searchParams.append('role', role);
   const res = await fetch(url.toString());
-  if (!res.ok) throw new Error('Failed to fetch overview metrics');
+  const ct = res.headers.get('content-type') || '';
+  if (!res.ok || !ct.includes('application/json')) throw new Error('Failed to fetch overview metrics');
   return res.json();
 }
 export const getOverviewMetrics = fetchOverviewMetrics;

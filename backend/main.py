@@ -131,10 +131,33 @@ def get_live_status(db: Session = Depends(get_db)):
 def trigger_simulated_backend_event(db: Session = Depends(get_db)):
     """Triggers an autonomous event cycle directly on the persistent database."""
     import random
-    actions = ["evc_advance", "doc_upload", "sla_tick"]
+    actions = ["new_app", "evc_advance", "doc_upload", "sla_tick"]
     choice = random.choice(actions)
 
-    if choice == "evc_advance":
+    if choice == "new_app":
+        inst = db.query(Institution).first()
+        if inst:
+            app_count = db.query(Application).count()
+            new_app_id = f"APP-2026-N{app_count + 1:04d}"
+            route = random.choice(["SE", "S", "SES"])
+            new_app = Application(
+                id=new_app_id,
+                institution_id=inst.id,
+                route_type=route,
+                current_stage_index=0,
+                age_in_days=9,
+                evc_timeline_status=random.randint(5, 14),
+                deficiency_count=random.randint(0, 2),
+                last_updated=datetime.utcnow()
+            )
+            db.add(new_app)
+            event_text = f"New Application: {inst.name} ({new_app_id}) submitted under Route {route}"
+            db.add(AuditLog(timestamp=format_timestamp(), actor="Institution Portal", event_description=event_text))
+            db.commit()
+            record_live_event(event_text)
+            return {"status": "success", "event": event_text, "version": LIVE_STATE["version"], "app_id": new_app_id}
+
+    elif choice == "evc_advance":
         app_obj = db.query(Application).options(joinedload(Application.institution)).filter(Application.route_type.in_(["SE", "SES", "ES"])).first()
         if app_obj:
             stages = ROUTE_STAGES.get(app_obj.route_type, [])
@@ -143,7 +166,7 @@ def trigger_simulated_backend_event(db: Session = Depends(get_db)):
             db.add(AuditLog(timestamp=format_timestamp(), actor="EVC Committee", event_description=event_text))
             db.commit()
             record_live_event(event_text)
-            return {"status": "success", "event": event_text, "version": LIVE_STATE["version"]}
+            return {"status": "success", "event": event_text, "version": LIVE_STATE["version"], "app_id": app_obj.id}
 
     elif choice == "doc_upload":
         doc = db.query(LeaseAndDocument).options(joinedload(LeaseAndDocument.institution)).filter(LeaseAndDocument.status == 0).first()
@@ -153,7 +176,17 @@ def trigger_simulated_backend_event(db: Session = Depends(get_db)):
             db.add(AuditLog(timestamp=format_timestamp(), actor="Institution Portal", event_description=event_text))
             db.commit()
             record_live_event(event_text)
-            return {"status": "success", "event": event_text, "version": LIVE_STATE["version"]}
+            return {"status": "success", "event": event_text, "version": LIVE_STATE["version"], "record_id": doc.id}
+
+    # sla_tick: escalate an application near SLA to overdue
+    overdue_app = db.query(Application).options(joinedload(Application.institution)).filter(Application.current_stage_index == 0).first()
+    if overdue_app:
+        overdue_app.age_in_days = max(overdue_app.age_in_days + 3, 16)
+        event_text = f"Statutory SLA Escalation: {overdue_app.institution.name} ({overdue_app.id}) breached Scrutiny timeline (L2 Alert)"
+        db.add(AuditLog(timestamp=format_timestamp(), actor="Statutory Engine", event_description=event_text))
+        db.commit()
+        record_live_event(event_text)
+        return {"status": "success", "event": event_text, "version": LIVE_STATE["version"], "app_id": overdue_app.id}
 
     event_text = "Statutory background SLA verification cycle completed"
     record_live_event(event_text)
