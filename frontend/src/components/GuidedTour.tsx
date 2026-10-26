@@ -10,38 +10,38 @@ export interface TourStep {
 const TOUR_STEPS: TourStep[] = [
   {
     targetSelector: '.topbar-search',
-    title: 'Omni Search & Quick Actions',
-    description: 'Quickly find any institution, file, or press ⌘K from anywhere to trigger workflows and switch views.',
+    title: '1. Omni Search & Command Palette',
+    description: 'Find any institution, file, or press ⌘K (Ctrl+K) from anywhere to trigger workflows, simulate alerts, and jump between screens.',
   },
   {
     targetSelector: '.kpi-grid',
-    title: 'Real-Time Urgency KPIs',
-    description: 'Live SLA countdown counters track statutory deadlines with smooth animated transitions.',
+    title: '2. Real-Time Urgency KPIs',
+    description: 'Tracks live statutory SLAs (Open, Stage Overdue, EVC Due ≤15d, Undertakings, Expiring Leases). Click any KPI cell to cross-filter the queue.',
   },
   {
-    targetSelector: '.charts-grid',
-    title: 'Bidirectionally Linked Views',
-    description: 'Hover any donut slice or regional heatmap cell to instantly highlight matching rows in the table.',
+    targetSelector: '.overview-grid',
+    title: '3. Deadline Heatmap & Trend Charts',
+    description: 'Interactive analytics: hover or click blocks in the Deadline Load heatmap, brush-drag the timeline, or select Donut slices to isolate risk.',
   },
   {
     targetSelector: '.table-wrap',
-    title: 'High-Power Table & Batch Actions',
-    description: 'Right-click any row for contextual actions, Shift-click for range selection, and expand rows for audit steps.',
+    title: '4. Attention Queue & Workflows',
+    description: 'High-power operational table: right-click for contextual actions, Shift-click for batch selection, and click Advance/Return to execute decisions.',
   },
   {
-    targetSelector: '.view-toggle-bar',
-    title: 'Kanban Board & Calendar Drag-Drop',
-    description: 'Switch between List, Board, and Calendar views to drag cards across stages and reschedule inspections.',
+    targetSelector: '.role-select',
+    title: '5. Role-Based Access Control (RBAC)',
+    description: 'Switch between Central Bureau, Regional Offices (South, North, West, East), or Committee (EVC/SAC) to inspect regional jurisdictions.',
   },
   {
     targetSelector: '.mode-pill',
-    title: 'Live Synchronization Engine',
-    description: 'Autonomous background simulation keeps pendencies fresh with real-time alerts and toast notifications.',
+    title: '6. Live Simulation & Time-Travel Engine',
+    description: 'Real-time WebSocket sync badge. Click here to trigger simulated events, advance timeline (+7d / +14d), or pause background monitoring.',
   },
   {
     targetSelector: '.safeguard-banner',
-    title: 'Regulatory & Statutory Safety',
-    description: 'AICTE alerts optimize workflows while statutory decision-making is strictly preserved for competent officers.',
+    title: '7. Statutory Safeguards & Compliance Notice',
+    description: 'Ensures algorithmic AICTE alerts optimize operational workflows while all statutory decisions remain strictly reserved for authorized officers.',
   },
 ];
 

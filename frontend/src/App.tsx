@@ -172,6 +172,7 @@ function AppShell() {
           onDismissSafeguard={dismissSafeguard}
           onOpenMenu={() => setMobileOpen(true)}
           onOpenCmd={() => setCmdOpen(true)}
+          onOpenTour={() => { setPage('ov'); setTourOpen(true); }}
         />
 
         {/* Page content — key changes trigger fade+slide-up */}

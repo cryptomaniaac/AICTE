@@ -30,9 +30,16 @@ interface TopBarProps {
   onDismissSafeguard: () => void;
   onOpenMenu: () => void;
   onOpenCmd: () => void;
+  onOpenTour?: () => void;
 }
 
-export function TopBar({ safeguardDismissed, onDismissSafeguard, onOpenMenu, onOpenCmd }: TopBarProps) {
+export function TopBar({
+  safeguardDismissed,
+  onDismissSafeguard,
+  onOpenMenu,
+  onOpenCmd,
+  onOpenTour,
+}: TopBarProps) {
   const {
     role, setRole,
     page, setPage,
@@ -278,6 +285,30 @@ export function TopBar({ safeguardDismissed, onDismissSafeguard, onOpenMenu, onO
               ? 'committee'
               : `${role.toLowerCase()} region`}
           </span>
+
+          {/* Guided Tour Launcher */}
+          {onOpenTour && (
+            <button
+              className="btn btn-ghost btn-xs"
+              onClick={onOpenTour}
+              aria-label="Start interactive 7-step guided tour"
+              title="7-Step Guided Tour: Learn all dashboard functions"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                borderRadius: 6,
+                padding: '4px 8px',
+                color: 'var(--primary)',
+                fontWeight: 600,
+                border: '1px solid var(--primary-border)',
+                background: 'var(--primary-50)',
+              }}
+            >
+              <Sparkles size={13} style={{ color: 'var(--primary)' }} />
+              <span>Tour</span>
+            </button>
+          )}
 
           {/* Bell with unread badge & pulse */}
           <button
