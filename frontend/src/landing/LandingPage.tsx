@@ -20,8 +20,14 @@ interface LandingPageProps {
 export function LandingPage({ activeTab }: LandingPageProps) {
   const { setRole } = useApp();
   const [signInOpen, setSignInOpen] = useState(false);
+  const [signInTab, setSignInTab] = useState<'signin' | 'register' | 'personas'>('signin');
   const [demoOpen, setDemoOpen] = useState(false);
   const [isEnteringApp, setIsEnteringApp] = useState(false);
+
+  const openSignInModal = useCallback((tab: 'signin' | 'register' | 'personas' = 'signin') => {
+    setSignInTab(tab);
+    setSignInOpen(true);
+  }, []);
 
   const handleGetStarted = useCallback(() => {
     setRole('Bureau');
@@ -54,7 +60,7 @@ export function LandingPage({ activeTab }: LandingPageProps) {
       {/* Sticky Top Navbar */}
       <LandingNavbar
         activeTab={activeTab}
-        onOpenSignIn={() => setSignInOpen(true)}
+        onOpenSignIn={() => openSignInModal('signin')}
         onGetStarted={handleGetStarted}
       />
 
@@ -65,10 +71,14 @@ export function LandingPage({ activeTab }: LandingPageProps) {
             <LandingHero
               onGetStarted={handleGetStarted}
               onWatchDemo={() => setDemoOpen(true)}
+              onOpenSignIn={() => openSignInModal('signin')}
             />
             <StatStrip />
             <FeaturesShowcase />
-            <CtaBand onGetStarted={handleGetStarted} />
+            <CtaBand
+              onGetStarted={handleGetStarted}
+              onOpenSignIn={() => openSignInModal('register')}
+            />
           </>
         )}
 
@@ -82,10 +92,11 @@ export function LandingPage({ activeTab }: LandingPageProps) {
       {/* Footer */}
       <LandingFooter />
 
-      {/* Sign In Persona Modal */}
+      {/* Sign In & Applicant Registration Modal */}
       <SignInModal
         isOpen={signInOpen}
         onClose={() => setSignInOpen(false)}
+        defaultTab={signInTab}
       />
 
       {/* Interactive Slideshow Demo Modal */}
@@ -96,3 +107,4 @@ export function LandingPage({ activeTab }: LandingPageProps) {
     </div>
   );
 }
+

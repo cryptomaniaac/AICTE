@@ -1,12 +1,19 @@
 import logging
 from sqlalchemy.orm import Session
 from database import SessionLocal, init_db, engine
-from models import Institution, Application, Undertaking, LeaseAndDocument, AuditLog, RegionEnum
+import hashlib
+from models import Institution, Application, Undertaking, LeaseAndDocument, AuditLog, RegionEnum, Applicant
 
 logger = logging.getLogger("aicte_seed")
 logging.basicConfig(level=logging.INFO)
 
+AUTH_SALT = "aicte_sih26262_secret_salt"
+
+def get_seed_hash(pw: str) -> str:
+    return hashlib.sha256(f"{AUTH_SALT}:{pw}".encode("utf-8")).hexdigest()
+
 # Exact institutions corresponding to the original frontend mock data
+
 MOCK_INSTITUTIONS = [
     {"id": "INST-2611", "name": "Nandi Institute of Technology", "region": RegionEnum.South},
     {"id": "INST-2612", "name": "Rajmata College of Engineering", "region": RegionEnum.West},
@@ -66,52 +73,113 @@ MOCK_AUDIT_LOGS = [
     {"timestamp": "25 Oct · 09:00", "actor": "System", "event_description": "Nightly deadline scan completed for all regions"}
 ]
 
+MOCK_APPLICANTS = [
+    {
+        "name": "Dr. Ramesh Sharma",
+        "email": "ramesh@nandi.edu.in",
+        "password_hash": get_seed_hash("Admin@123"),
+        "phone": "+91 98450 12345",
+        "institution_name": "Nandi Institute of Technology",
+        "institution_id": "INST-2611",
+        "region": RegionEnum.South,
+        "route_type": "SE",
+        "role": "Institution",
+        "application_id": "A-2611",
+        "created_at": "25 Oct · 09:15"
+    },
+    {
+        "name": "Dr. Priya Desai",
+        "email": "director@rajmata.ac.in",
+        "password_hash": get_seed_hash("Admin@123"),
+        "phone": "+91 98220 54321",
+        "institution_name": "Rajmata College of Engineering",
+        "institution_id": "INST-2612",
+        "region": RegionEnum.West,
+        "route_type": "S",
+        "role": "Institution",
+        "application_id": "A-2612",
+        "created_at": "25 Oct · 09:30"
+    },
+    {
+        "name": "Prof. Arvind Kumar",
+        "email": "arvind@himalaya.edu.in",
+        "password_hash": get_seed_hash("Admin@123"),
+        "phone": "+91 94190 87654",
+        "institution_name": "Himalaya Polytechnic",
+        "institution_id": "INST-2613",
+        "region": RegionEnum.North,
+        "route_type": "ES",
+        "role": "Institution",
+        "application_id": "A-2613",
+        "created_at": "25 Oct · 10:00"
+    },
+    {
+        "name": "Dr. Ananya Roy",
+        "email": "ananya@sundarban.edu.in",
+        "password_hash": get_seed_hash("Admin@123"),
+        "phone": "+91 98310 99887",
+        "institution_name": "Sundarban Tech University",
+        "institution_id": "INST-2621",
+        "region": RegionEnum.East,
+        "route_type": "SES",
+        "role": "Institution",
+        "application_id": "A-2621",
+        "created_at": "25 Oct · 10:45"
+    }
+]
+
 def seed_database(db: Session, force: bool = False):
     """
     Populates the database with initial mock data matching the frontend script.
-    If data already exists and force is False, seeding is skipped.
+    If data already exists and force is False, seeding is skipped (except for missing applicants).
     """
-    if not force and db.query(Institution).count() > 0:
-        logger.info("Database already contains data. Skipping initial seeding.")
-        return
-
-    logger.info("Seeding database with AICTE initial mock data...")
-
     if force:
         # Delete existing in reverse order of foreign keys
         db.query(AuditLog).delete()
+        db.query(Applicant).delete()
         db.query(LeaseAndDocument).delete()
         db.query(Undertaking).delete()
         db.query(Application).delete()
         db.query(Institution).delete()
         db.commit()
 
-    # 1. Seed Institutions
-    for inst in MOCK_INSTITUTIONS:
-        db.add(Institution(**inst))
-    db.commit()
+    if force or db.query(Institution).count() == 0:
+        logger.info("Seeding database with AICTE initial mock data...")
 
-    # 2. Seed Applications
-    for app in MOCK_APPLICATIONS:
-        db.add(Application(**app))
-    db.commit()
+        # 1. Seed Institutions
+        for inst in MOCK_INSTITUTIONS:
+            db.add(Institution(**inst))
+        db.commit()
 
-    # 3. Seed Undertakings
-    for un in MOCK_UNDERTAKINGS:
-        db.add(Undertaking(**un))
-    db.commit()
+        # 2. Seed Applications
+        for app in MOCK_APPLICATIONS:
+            db.add(Application(**app))
+        db.commit()
 
-    # 4. Seed Leases & Documents
-    for doc in MOCK_LEASES:
-        db.add(LeaseAndDocument(**doc))
-    db.commit()
+        # 3. Seed Undertakings
+        for un in MOCK_UNDERTAKINGS:
+            db.add(Undertaking(**un))
+        db.commit()
 
-    # 5. Seed Audit Logs
-    for log in MOCK_AUDIT_LOGS:
-        db.add(AuditLog(**log))
-    db.commit()
+        # 4. Seed Leases & Documents
+        for doc in MOCK_LEASES:
+            db.add(LeaseAndDocument(**doc))
+        db.commit()
+
+        # 5. Seed Audit Logs
+        for log in MOCK_AUDIT_LOGS:
+            db.add(AuditLog(**log))
+        db.commit()
+
+    # Seed applicants if not present
+    if force or db.query(Applicant).count() == 0:
+        logger.info("Seeding initial mock applicants...")
+        for ap in MOCK_APPLICANTS:
+            db.add(Applicant(**ap))
+        db.commit()
 
     logger.info("Database seeding successfully completed!")
+
 
 if __name__ == "__main__":
     init_db()

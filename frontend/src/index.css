@@ -5484,7 +5484,442 @@ html.density-compact .table th {
   gap: 10px;
 }
 
+/* ── Expanded Authentication Modal ─────────────────────────── */
+.auth-modal-expanded {
+  max-width: 540px;
+  max-height: 90vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.auth-tab-bar {
+  display: flex;
+  align-items: center;
+  background: var(--landing-surface);
+  border: 1px solid var(--landing-border);
+  border-radius: 10px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+
+.auth-tab-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  background: transparent;
+  border: none;
+  color: var(--landing-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease);
+}
+
+.auth-tab-btn:hover {
+  color: var(--landing-text);
+}
+
+.auth-tab-btn.active {
+  background: var(--blue-bg);
+  color: var(--primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.auth-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  font-size: 12.5px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  animation: modalEnter 0.2s var(--ease);
+}
+
+.auth-error-banner .error-icon {
+  flex-shrink: 0;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auth-form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.auth-form-row .flex-1 {
+  flex: 1;
+}
+
+@media (max-width: 580px) {
+  .auth-form-row {
+    flex-direction: column;
+    gap: 14px;
+  }
+}
+
+.label-with-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.link-btn-subtle {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link-btn-subtle:hover {
+  opacity: 0.85;
+}
+
+.input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-icon .input-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--landing-muted);
+  pointer-events: none;
+}
+
+.auth-input,
+.auth-select {
+  width: 100%;
+  padding: 10px 14px 10px 36px;
+  border-radius: 8px;
+  border: 1px solid var(--landing-border);
+  background: var(--landing-surface);
+  color: var(--landing-text);
+  font-size: 13.5px;
+  outline: none;
+  transition: all var(--dur-fast) var(--ease);
+}
+
+.auth-input:focus,
+.auth-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.input-eye-btn {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  color: var(--landing-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.input-eye-btn:hover {
+  color: var(--landing-text);
+}
+
+.region-selector-pills {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.region-pill-btn {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--landing-border);
+  background: var(--landing-surface);
+  color: var(--landing-text);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: all var(--dur-fast) var(--ease);
+}
+
+.region-pill-btn:hover {
+  border-color: var(--primary);
+}
+
+.region-pill-btn.selected {
+  border-color: var(--primary);
+  background: var(--blue-bg);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.auth-demo-tip,
+.auth-db-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.auth-demo-tip {
+  background: var(--blue-bg);
+  border: 1px solid var(--blue-border);
+  color: var(--landing-text);
+}
+
+.auth-demo-tip .tip-icon {
+  color: var(--primary);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.auth-db-notice {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #059669;
+}
+
+[data-theme='dark'] .auth-db-notice {
+  color: #34d399;
+}
+
+.auth-db-notice .notice-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.personas-hint {
+  font-size: 12.5px;
+  color: var(--landing-muted);
+  margin: 0 0 14px 0;
+}
+
+.persona-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.persona-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 4px;
+}
+
+.persona-badge.bureau {
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--primary);
+}
+
+.persona-badge.inst {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+
+/* Hero & CTA "Applicant Sign In" button */
+.landing-cta-signin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 20px;
+  border-radius: 9px;
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--primary);
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all var(--dur-fast) var(--ease);
+}
+
+.landing-cta-signin:hover {
+  background: rgba(37, 99, 235, 0.18);
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.landing-cta-signin.large {
+  padding: 14px 26px;
+  font-size: 14.5px;
+}
+
+/* TopBar User Profile Dropdown */
+.topbar-user-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease);
+}
+
+.topbar-user-btn:hover {
+  background: var(--landing-surface-card);
+}
+
+.topbar-user-badge {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-user-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 260px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  padding: 12px;
+  z-index: 1000;
+  animation: modalEnter 0.18s var(--ease);
+}
+
+.user-dropdown-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px;
+}
+
+.user-dropdown-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--blue-bg);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.user-dropdown-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-dropdown-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-dropdown-email {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-dropdown-inst {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-dropdown-inst .region-tag {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.user-dropdown-appid {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.user-dropdown-appid code {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.user-dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 0;
+}
+
+.user-dropdown-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: all var(--dur-fast) var(--ease);
+}
+
+.user-dropdown-item:hover {
+  background: var(--border);
+}
+
+.user-dropdown-item.text-danger {
+  color: #ef4444;
+}
+
+.user-dropdown-item.text-danger:hover {
+  background: rgba(239, 68, 68, 0.08);
+}
+
 /* Demo Slideshow Modal */
+
 .demo-slideshow-card {
   width: 100%;
   max-width: 820px;

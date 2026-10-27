@@ -15,7 +15,10 @@ import {
   Zap,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
+  LogOut,
 } from 'lucide-react';
+
 import { useApp } from '../context/AppContext';
 import { navigateTo } from '../router';
 import {
@@ -193,6 +196,8 @@ export function Sidebar({
             { label: 'APH Rules',   icon: SlidersHorizontal },
             { label: 'Settings',    icon: Settings },
             { label: 'Help Center', icon: LifeBuoy },
+            { label: 'Portal Home', icon: ExternalLink },
+            { label: 'Sign Out',    icon: LogOut },
           ].map(item => {
             const Icon = item.icon;
             return (
@@ -209,6 +214,12 @@ export function Sidebar({
                   } else if (item.label === 'Help Center') {
                     onOpenHelpCenter?.();
                     onMobileClose();
+                  } else if (item.label === 'Portal Home') {
+                    navigateTo('/');
+                    onMobileClose();
+                  } else if (item.label === 'Sign Out') {
+                    ctx.logoutUser();
+                    onMobileClose();
                   }
                 }}
                 aria-label={item.label}
@@ -219,6 +230,7 @@ export function Sidebar({
               </button>
             );
           })}
+
         </div>
 
         {/* Footer */}

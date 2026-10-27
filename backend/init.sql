@@ -58,6 +58,23 @@ CREATE TABLE audit_logs (
     event_description TEXT NOT NULL
 );
 
+-- 7. Applicants Table
+CREATE TABLE applicants (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    phone VARCHAR(50),
+    institution_name VARCHAR(255) NOT NULL,
+    institution_id VARCHAR(50) REFERENCES institutions(id) ON DELETE SET NULL,
+    region region_enum NOT NULL,
+    route_type VARCHAR(10) DEFAULT 'SES' NOT NULL,
+    role VARCHAR(50) DEFAULT 'Institution' NOT NULL,
+    application_id VARCHAR(50),
+    created_at VARCHAR(50) NOT NULL
+);
+
+
 -- ==============================================================
 -- INITIAL MOCK DATA SEEDING
 -- ==============================================================

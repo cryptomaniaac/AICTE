@@ -5,9 +5,10 @@ import { navigateTo } from '../router';
 
 interface CtaBandProps {
   onGetStarted: () => void;
+  onOpenSignIn?: () => void;
 }
 
-export function CtaBand({ onGetStarted }: CtaBandProps) {
+export function CtaBand({ onGetStarted, onOpenSignIn }: CtaBandProps) {
   const { setRole } = useApp();
   const [selectedRole, setSelectedRole] = useState('Bureau');
 
@@ -66,6 +67,14 @@ export function CtaBand({ onGetStarted }: CtaBandProps) {
             >
               Enter as {roles.find(r => r.id === selectedRole)?.label || 'Bureau Officer'} <ArrowRight size={16} />
             </button>
+            {onOpenSignIn && (
+              <button
+                className="landing-cta-signin large"
+                onClick={onOpenSignIn}
+              >
+                Applicant Portal & Sign In
+              </button>
+            )}
             <button
               className="landing-cta-secondary"
               onClick={onGetStarted}
@@ -78,3 +87,4 @@ export function CtaBand({ onGetStarted }: CtaBandProps) {
     </section>
   );
 }
+

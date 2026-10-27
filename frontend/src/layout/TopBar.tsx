@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Bell, Menu, Search, Command, Play, Pause, Sparkles, RefreshCw, X } from 'lucide-react';
+import { Bell, Menu, Search, Command, Play, Pause, Sparkles, RefreshCw, X, User, LogOut, ExternalLink } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { navigateTo } from '../router';
 import api from '../api';
 
 const PAGE_TITLES: Record<string, string> = {
@@ -14,17 +15,21 @@ const PAGE_TITLES: Record<string, string> = {
 };
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
-  Bureau:    'Bureau — all regions',
-  South:     'Regional · South only',
-  North:     'Regional · North only',
-  West:      'Regional · West only',
-  East:      'Regional · East only',
-  Committee: 'Committee — EVC & SAC/SHC',
+  Bureau:      'Bureau — all regions',
+  South:       'Regional · South only',
+  North:       'Regional · North only',
+  West:        'Regional · West only',
+  East:        'Regional · East only',
+  Committee:   'Committee — EVC & SAC/SHC',
+  Institution: 'Applicant Institution Portal',
+  Applicant:   'Applicant Institution Portal',
 };
 
 const ROLE_INITIALS: Record<string, string> = {
   Bureau: 'BU', South: 'RS', North: 'RN', West: 'RW', East: 'RE', Committee: 'CM',
+  Institution: 'IN', Applicant: 'AP',
 };
+
 
 interface TopBarProps {
   safeguardDismissed: boolean;
@@ -52,11 +57,14 @@ export function TopBar({
     timeTravelDays, setTimeTravelDays,
     resetDemoData,
     searchQuery, setSearchQuery,
+    currentUser, logoutUser,
   } = useApp();
 
   const searchRef = useRef<HTMLInputElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const [showLiveMenu, setShowLiveMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   // "Updated Xs ago" ticker connected to lastUpdatedTimestamp
   const [updatedSec, setUpdatedSec] = useState(0);
@@ -96,22 +104,26 @@ export function TopBar({
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // Close live popover on outside click
+  // Close live popover and user dropdown on outside click
   useEffect(() => {
-    if (!showLiveMenu) return;
+    if (!showLiveMenu && !showUserMenu) return;
     const clickOutside = (e: MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         setShowLiveMenu(false);
       }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false);
+      }
     };
     document.addEventListener('mousedown', clickOutside);
     return () => document.removeEventListener('mousedown', clickOutside);
-  }, [showLiveMenu]);
+  }, [showLiveMenu, showUserMenu]);
 
   const handleBellClick = () => {
     clearBellCount();
     setPage('es');
   };
+
 
   return (
     <div>
@@ -268,7 +280,7 @@ export function TopBar({
             value={role}
             onChange={e => setRole(e.target.value)}
             aria-label="Switch active role"
-            title={ROLE_DESCRIPTIONS[role]}
+            title={ROLE_DESCRIPTIONS[role] || role}
           >
             <option value="Bureau">Bureau</option>
             <option value="South">Regional · South</option>
@@ -276,18 +288,27 @@ export function TopBar({
             <option value="West">Regional · West</option>
             <option value="East">Regional · East</option>
             <option value="Committee">Committee (EVC / SAC)</option>
+            {currentUser ? (
+              <option value={currentUser.role || 'Institution'}>
+                {currentUser.name} ({currentUser.region})
+              </option>
+            ) : (
+              <option value="Institution">Applicant Institution</option>
+            )}
           </select>
 
           {/* Role scope label */}
           <span
             className="role-scope-badge"
-            aria-label={`Active scope: ${ROLE_DESCRIPTIONS[role]}`}
-            title={ROLE_DESCRIPTIONS[role]}
+            aria-label={`Active scope: ${ROLE_DESCRIPTIONS[role] || role}`}
+            title={ROLE_DESCRIPTIONS[role] || role}
           >
             Scope: {role === 'Bureau'
               ? 'all regions'
               : role === 'Committee'
               ? 'committee'
+              : role === 'Institution' || role === 'Applicant'
+              ? (currentUser?.region ? `${currentUser.region.toLowerCase()} region` : 'institution')
               : `${role.toLowerCase()} region`}
           </span>
 
@@ -348,15 +369,83 @@ export function TopBar({
             )}
           </button>
 
-          {/* Avatar */}
-          <div
-            className="topbar-avatar"
-            title={ROLE_DESCRIPTIONS[role]}
-            aria-label={`Signed in as ${role}`}
-          >
-            {ROLE_INITIALS[role] || 'AC'}
+          {/* User Account Avatar & Popover */}
+          <div style={{ position: 'relative' }} ref={userMenuRef}>
+            <button
+              className="topbar-user-btn"
+              onClick={() => setShowUserMenu(o => !o)}
+              aria-label="User profile and account settings"
+              aria-expanded={showUserMenu}
+              title={currentUser ? `${currentUser.name} (${currentUser.institution_name})` : `Signed in as ${role}`}
+            >
+              <div className="topbar-avatar">
+                {currentUser
+                  ? currentUser.name.split(' ').map(n => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+                  : ROLE_INITIALS[role] || 'AC'}
+              </div>
+              {currentUser && (
+                <span className="topbar-user-badge">
+                  {currentUser.name.split(' ')[0]}
+                </span>
+              )}
+            </button>
+
+            {showUserMenu && (
+              <div className="topbar-user-dropdown" role="menu">
+                <div className="user-dropdown-header">
+                  <div className="user-dropdown-avatar">
+                    <User size={18} />
+                  </div>
+                  <div className="user-dropdown-info">
+                    <div className="user-dropdown-name">
+                      {currentUser ? currentUser.name : (ROLE_DESCRIPTIONS[role] || role)}
+                    </div>
+                    <div className="user-dropdown-email">
+                      {currentUser ? currentUser.email : `${role.toLowerCase()}@aicte.gov.in`}
+                    </div>
+                    {currentUser?.institution_name && (
+                      <div className="user-dropdown-inst">
+                        {currentUser.institution_name} · <span className="region-tag">{currentUser.region}</span>
+                      </div>
+                    )}
+                    {currentUser?.application_id && (
+                      <div className="user-dropdown-appid">
+                        App ID: <code>{currentUser.application_id}</code>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="user-dropdown-divider" />
+
+                <div className="user-dropdown-actions">
+                  <button
+                    className="user-dropdown-item"
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      navigateTo('/');
+                    }}
+                  >
+                    <ExternalLink size={14} />
+                    <span>AICTE Landing Home</span>
+                  </button>
+
+                  <button
+                    className="user-dropdown-item text-danger"
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      logoutUser();
+                    }}
+                  >
+                    <LogOut size={14} />
+                    <span>Sign Out & Return</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
+
       </header>
     </div>
   );

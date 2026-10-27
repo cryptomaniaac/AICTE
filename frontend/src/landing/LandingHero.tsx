@@ -1,12 +1,14 @@
-import { Sparkles, ArrowRight, Play } from 'lucide-react';
+import { Sparkles, ArrowRight, Play, LogIn } from 'lucide-react';
 import { ProductFrame } from './ProductFrame';
 
 interface LandingHeroProps {
   onGetStarted: () => void;
   onWatchDemo: () => void;
+  onOpenSignIn: () => void;
 }
 
-export function LandingHero({ onGetStarted, onWatchDemo }: LandingHeroProps) {
+export function LandingHero({ onGetStarted, onWatchDemo, onOpenSignIn }: LandingHeroProps) {
+
   return (
     <section className="landing-hero" aria-labelledby="hero-heading">
       {/* Background Arc & Star Particles */}
@@ -111,6 +113,15 @@ export function LandingHero({ onGetStarted, onWatchDemo }: LandingHeroProps) {
           </button>
 
           <button
+            className="landing-cta-signin"
+            onClick={onOpenSignIn}
+            aria-label="Applicant Sign In or Register"
+          >
+            <LogIn size={15} aria-hidden="true" />
+            Applicant Sign In
+          </button>
+
+          <button
             className="landing-cta-secondary"
             onClick={onWatchDemo}
             aria-label="Watch interactive demo walk-through"
@@ -119,6 +130,7 @@ export function LandingHero({ onGetStarted, onWatchDemo }: LandingHeroProps) {
             Watch Demo
           </button>
         </div>
+
       </div>
 
       {/* Product Preview Frame at the bottom of hero */}

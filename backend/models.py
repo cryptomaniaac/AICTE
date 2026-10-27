@@ -103,3 +103,34 @@ class SystemConfig(Base):
     value = Column(String, nullable=False)
     description = Column(String, nullable=True)
 
+
+class Applicant(Base):
+    """
+    applicants: id (PK, Integer, auto-increment),
+    name (String), email (String, unique, index), password_hash (String),
+    phone (String, nullable), institution_name (String),
+    institution_id (String, ForeignKey("institutions.id", ondelete="SET NULL"), nullable),
+    region (Enum: North, South, East, West),
+    route_type (String), role (String, default "Institution"),
+    application_id (String, nullable),
+    created_at (String)
+    """
+    __tablename__ = "applicants"
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    name = Column(String, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    phone = Column(String, nullable=True)
+    institution_name = Column(String, nullable=False)
+    institution_id = Column(String, ForeignKey("institutions.id", ondelete="SET NULL"), nullable=True)
+    region = Column(SQLEnum(RegionEnum, name="region_enum", native_enum=False), nullable=False)
+    route_type = Column(String, default="SES", nullable=False)
+    role = Column(String, default="Institution", nullable=False)
+    application_id = Column(String, nullable=True)
+    created_at = Column(String, nullable=False)
+
+    # Relationship
+    institution = relationship("Institution")
+
+

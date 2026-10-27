@@ -286,6 +286,154 @@ export async function downloadPendencyReportCsv(role?: string, region?: string):
   window.URL.revokeObjectURL(downloadUrl);
 }
 
+// ----------------- Applicant Profile & Authentication -----------------
+export interface ApplicantProfile {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string;
+  institution_name: string;
+  institution_id?: string;
+  region: 'North' | 'South' | 'East' | 'West';
+  route_type: string;
+  role: string;
+  application_id?: string;
+  created_at: string;
+}
+
+export interface AuthResult {
+  status: string;
+  message: string;
+  token: string;
+  applicant: ApplicantProfile;
+}
+
+export interface ApplicantRegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+  institution_name: string;
+  region: 'North' | 'South' | 'East' | 'West';
+  route_type: string;
+  phone?: string;
+  role?: string;
+}
+
+export interface ApplicantLoginPayload {
+  email: string;
+  password: string;
+}
+
+function getCachedApplicants(): ApplicantProfile[] {
+  try {
+    const stored = localStorage.getItem('aicte_cached_applicants');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCachedApplicant(applicant: ApplicantProfile) {
+  try {
+    const list = getCachedApplicants();
+    const filtered = list.filter(a => a.email.toLowerCase() !== applicant.email.toLowerCase());
+    localStorage.setItem('aicte_cached_applicants', JSON.stringify([applicant, ...filtered]));
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function registerApplicant(payload: ApplicantRegisterPayload): Promise<AuthResult> {
+  const url = `${API_BASE}/api/auth/register`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const ct = res.headers.get('content-type') || '';
+    if (res.ok && ct.includes('application/json')) {
+      const data: AuthResult = await res.json();
+      saveCachedApplicant(data.applicant);
+      return data;
+    }
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData?.detail || 'Registration failed on server');
+  } catch (err: any) {
+    if (err.message && !err.message.includes('fetch') && !err.message.includes('network')) {
+      throw err;
+    }
+    // Fallback if backend server is starting up or in purely static deployment
+    const mockApplicant: ApplicantProfile = {
+      id: Math.floor(Math.random() * 9000) + 1000,
+      name: payload.name.trim(),
+      email: payload.email.trim(),
+      phone: payload.phone?.trim(),
+      institution_name: payload.institution_name.trim(),
+      institution_id: `INST-${Math.floor(Math.random() * 800) + 2630}`,
+      region: payload.region,
+      route_type: payload.route_type,
+      role: payload.role || 'Institution',
+      application_id: `A-${Math.floor(Math.random() * 800) + 2630}`,
+      created_at: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+    };
+    saveCachedApplicant(mockApplicant);
+    return {
+      status: 'success',
+      message: 'Registered successfully (client mode).',
+      token: `aicte_token_${Date.now()}`,
+      applicant: mockApplicant,
+    };
+  }
+}
+
+export async function loginApplicant(payload: ApplicantLoginPayload): Promise<AuthResult> {
+  const url = `${API_BASE}/api/auth/login`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const ct = res.headers.get('content-type') || '';
+    if (res.ok && ct.includes('application/json')) {
+      const data: AuthResult = await res.json();
+      saveCachedApplicant(data.applicant);
+      return data;
+    }
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData?.detail || 'Invalid email or password');
+  } catch (err: any) {
+    if (err.message && !err.message.includes('fetch') && !err.message.includes('network')) {
+      throw err;
+    }
+    // Check local cached applicants
+    const cached = getCachedApplicants();
+    const found = cached.find(a => a.email.toLowerCase() === payload.email.toLowerCase().trim());
+    if (found) {
+      return {
+        status: 'success',
+        message: `Welcome back, ${found.name}!`,
+        token: `aicte_token_${Date.now()}`,
+        applicant: found,
+      };
+    }
+    throw new Error('Could not connect to authentication server. Please check your credentials or register as a new applicant.');
+  }
+}
+
+export async function fetchApplicants(): Promise<ApplicantProfile[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/applicants`, { signal: AbortSignal.timeout(3500) });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {
+    /* fallback to cached */
+  }
+  return getCachedApplicants();
+}
+
 export default {
   getApplications,
   fetchApplications,
@@ -318,6 +466,10 @@ export default {
   getAphRules,
   updateAphRules,
   downloadPendencyReportCsv,
+  registerApplicant,
+  loginApplicant,
+  fetchApplicants,
 };
+
 
 

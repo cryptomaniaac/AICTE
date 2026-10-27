@@ -165,3 +165,42 @@ class AphRulesUpdateRequest(BaseModel):
     class Config:
         populate_by_name = True
 
+
+# ----------------- Applicant & Auth Schemas -----------------
+class ApplicantRegisterRequest(BaseModel):
+    name: str = Field(..., min_length=2, description="Applicant full name / representative")
+    email: str = Field(..., description="Official contact email")
+    password: str = Field(..., min_length=4, description="Password for account authentication")
+    institution_name: str = Field(..., min_length=3, description="Educational institution name")
+    region: RegionEnum = Field(..., description="Region: North, South, East, West")
+    route_type: str = Field("SES", description="Approval route type: S, SE, ES, E, SES")
+    phone: Optional[str] = Field(None, description="Contact telephone number")
+    role: str = Field("Institution", description="Role persona: Institution, Bureau, Regional, Committee")
+
+class ApplicantLoginRequest(BaseModel):
+    email: str = Field(..., description="Email address or persona handle")
+    password: str = Field(..., description="Account password")
+
+class ApplicantResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    phone: Optional[str] = None
+    institution_name: str
+    institution_id: Optional[str] = None
+    region: RegionEnum
+    route_type: str
+    role: str
+    application_id: Optional[str] = None
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+class AuthSuccessResponse(BaseModel):
+    status: str = "success"
+    message: str
+    token: str
+    applicant: ApplicantResponse
+
+

@@ -7,11 +7,12 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
-import api from '../api';
+import api, { type ApplicantProfile } from '../api';
 // Single source of truth for stages/SLA/alert levels: lib/metrics.ts
 import { ROUTES, DEFAULT_SLA, getStage, getDaysLeft, alertLevel, formatDays } from '../lib/metrics';
 import { getSimulatedDate, formatDemoDate } from '../lib/clock';
-import { parseRoute, appPageToPath } from '../router';
+import { parseRoute, appPageToPath, navigateTo } from '../router';
+
 import type {
   Theme,
   NavPage,
@@ -185,7 +186,13 @@ interface AppContextValue {
   // Helpers
   getDaysLeftForApp: (a: AppRecord) => number;
   roleName: string;
+
+  // User Authentication & Profile
+  currentUser: ApplicantProfile | null;
+  setCurrentUser: (user: ApplicantProfile | null) => void;
+  logoutUser: () => void;
 }
+
 
 const AppContext = createContext<AppContextValue | null>(null);
 
@@ -214,13 +221,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light');
 
-  // ── Role & Page (Router integrated) ─────────────────────────────────────────
+  // ── Role, User & Page (Router integrated) ──────────────────────────────────
   const initialRoute = parseRoute(
     typeof window !== 'undefined' ? window.location.pathname : '/',
     typeof window !== 'undefined' ? window.location.hash : ''
   );
-  const [role, setRole] = useState('Bureau');
+
+  const [currentUser, setCurrentUserState] = useState<ApplicantProfile | null>(() => {
+    try {
+      const stored = localStorage.getItem('aicte_current_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [role, setRole] = useState(() => {
+    try {
+      const storedUser = localStorage.getItem('aicte_current_user');
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        if (parsed.role) return parsed.role;
+        if (parsed.region) return parsed.region;
+      }
+    } catch {
+      /* ignore */
+    }
+    return 'Bureau';
+  });
+
   const [page, setPageState] = useState<NavPage>(initialRoute.appPage);
+
 
   const setPage = useCallback((p: NavPage | ((prev: NavPage) => NavPage)) => {
     setPageState(prev => {
@@ -318,18 +349,73 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const clearBellCount = useCallback(() => setBellUnreadCount(0), []);
   const [recentlyUpdatedId, setRecentlyUpdatedId] = useState<string | null>(null);
 
+  // ── User Authentication Callbacks ──────────────────────────────────────────
+  const setCurrentUser = useCallback((user: ApplicantProfile | null) => {
+    setCurrentUserState(user);
+    try {
+      if (user) {
+        localStorage.setItem('aicte_current_user', JSON.stringify(user));
+        if (user.role && user.role !== 'Institution') {
+          setRole(user.role);
+        } else if (user.region) {
+          setRole(user.region);
+        }
+        if (user.application_id && user.institution_name) {
+          setA(prev => {
+            if (prev.some(a => a.id === user.application_id || a.inst.toLowerCase() === user.institution_name.toLowerCase())) {
+              return prev;
+            }
+            const newApp: AppRecord = {
+              id: user.application_id!,
+              inst: user.institution_name,
+              reg: user.region,
+              rt: user.route_type || 'SES',
+              i: 0,
+              age: 1,
+              evc: user.route_type.includes('E') ? 14 : 0,
+            };
+            return [newApp, ...prev];
+          });
+          setLOG(prev => [{
+            t: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            who: user.name,
+            x: `Applicant Onboarded: ${user.name} · ${user.institution_name} (${user.region})`,
+          }, ...prev]);
+        }
+      } else {
+        localStorage.removeItem('aicte_current_user');
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const logoutUser = useCallback(() => {
+    setCurrentUserState(null);
+    try {
+      localStorage.removeItem('aicte_current_user');
+    } catch {
+      /* ignore */
+    }
+    setRole('Bureau');
+    showToast('Signed Out', 'You have been signed out safely.', 'info');
+    navigateTo('/', { transition: true });
+  }, [showToast]);
+
   // ── Role name ──────────────────────────────────────────────────────────────
   const roleName = useMemo(() => {
     switch (role) {
-      case 'Bureau':    return 'Bureau officer';
-      case 'South':     return 'Regional · South';
-      case 'North':     return 'Regional · North';
-      case 'West':      return 'Regional · West';
-      case 'East':      return 'Regional · East';
-      case 'Committee': return 'Committee (EVC / SAC)';
-      default:          return role;
+      case 'Bureau':      return 'Bureau officer';
+      case 'South':       return 'Regional · South';
+      case 'North':       return 'Regional · North';
+      case 'West':        return 'Regional · West';
+      case 'East':        return 'Regional · East';
+      case 'Committee':   return 'Committee (EVC / SAC)';
+      case 'Applicant':
+      case 'Institution': return currentUser ? `${currentUser.name} (${currentUser.institution_name})` : 'Applicant / Institution';
+      default:            return role;
     }
-  }, [role]);
+  }, [role, currentUser]);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const getDaysLeftForApp = useCallback((a: AppRecord) => {
@@ -342,22 +428,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (s === null) return false;
     if (role === 'Bureau') return true;
     if (role === 'Committee') return s === 'EVC' || s === 'SAC/SHC';
+    if (role === 'Applicant' || role === 'Institution') {
+      if (currentUser?.institution_name) {
+        return a.inst.toLowerCase().includes(currentUser.institution_name.toLowerCase()) || a.reg === currentUser.region;
+      }
+      return true;
+    }
     return a.reg === role;
-  }), [A, role]);
+  }), [A, role, currentUser]);
 
   const evcs = useMemo(() => apps.filter(a => getStage(a) === 'EVC'), [apps]);
 
   const ul = useMemo(() => U.filter(u => {
     if (role === 'Bureau') return true;
     if (role === 'Committee') return u.s < 2;
+    if (role === 'Applicant' || role === 'Institution') {
+      if (currentUser?.institution_name) {
+        return u.inst.toLowerCase().includes(currentUser.institution_name.toLowerCase()) || u.reg === currentUser.region;
+      }
+      return true;
+    }
     return u.reg === role;
-  }), [U, role]);
+  }), [U, role, currentUser]);
 
   const dl = useMemo(() => D.filter(d => {
     if (role === 'Bureau') return true;
     if (role === 'Committee') return d.s < 2;
+    if (role === 'Applicant' || role === 'Institution') {
+      if (currentUser?.institution_name) {
+        return d.inst.toLowerCase().includes(currentUser.institution_name.toLowerCase()) || d.reg === currentUser.region;
+      }
+      return true;
+    }
     return d.reg === role;
-  }), [D, role]);
+  }), [D, role, currentUser]);
+
 
   // ── Urgency items ──────────────────────────────────────────────────────────
   const urgencyItems = useMemo<UrgencyItem[]>(() => {
@@ -973,7 +1078,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dataReady,
     pendingAppsFilter, setPendingAppsFilter,
     pendingDrawerAppId, setPendingDrawerAppId,
+    currentUser, setCurrentUser, logoutUser,
   };
+
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
