@@ -324,6 +324,55 @@ export interface ApplicantLoginPayload {
   password: string;
 }
 
+// Built-in demo applicants — always available without a backend (Vercel / static deployments)
+const DEMO_APPLICANTS: Record<string, { profile: ApplicantProfile; password: string }> = {
+  'ramesh@nandi.edu.in': {
+    password: 'Admin@123',
+    profile: {
+      id: 2611,
+      name: 'Dr. Ramesh Sharma',
+      email: 'ramesh@nandi.edu.in',
+      institution_name: 'Nandi Institute of Technology',
+      institution_id: 'INST-2611',
+      region: 'South',
+      route_type: 'SE',
+      role: 'Institution',
+      application_id: 'A-2611',
+      created_at: '25 Oct · 09:15',
+    },
+  },
+  'priya@himalaya.edu.in': {
+    password: 'Admin@123',
+    profile: {
+      id: 2613,
+      name: 'Prof. Priya Nair',
+      email: 'priya@himalaya.edu.in',
+      institution_name: 'Himalaya Polytechnic',
+      institution_id: 'INST-2613',
+      region: 'North',
+      route_type: 'ES',
+      role: 'Institution',
+      application_id: 'A-2613',
+      created_at: '25 Oct · 10:30',
+    },
+  },
+  'bureau@aicte.gov.in': {
+    password: 'Admin@123',
+    profile: {
+      id: 1,
+      name: 'Bureau Officer',
+      email: 'bureau@aicte.gov.in',
+      institution_name: 'AICTE Central Bureau',
+      institution_id: undefined,
+      region: 'North',
+      route_type: 'SES',
+      role: 'Bureau',
+      application_id: undefined,
+      created_at: '25 Oct · 08:00',
+    },
+  },
+};
+
 function getCachedApplicants(): ApplicantProfile[] {
   try {
     const stored = localStorage.getItem('aicte_cached_applicants');
@@ -341,6 +390,14 @@ function saveCachedApplicant(applicant: ApplicantProfile) {
   } catch {
     /* ignore */
   }
+}
+
+/** Look up an email in demo applicants list (case-insensitive). */
+function findDemoApplicant(email: string, password?: string) {
+  const entry = DEMO_APPLICANTS[email.toLowerCase().trim()];
+  if (!entry) return null;
+  if (password !== undefined && entry.password !== password) return null;
+  return entry.profile;
 }
 
 export async function registerApplicant(payload: ApplicantRegisterPayload): Promise<AuthResult> {
@@ -389,11 +446,15 @@ export async function registerApplicant(payload: ApplicantRegisterPayload): Prom
 
 export async function loginApplicant(payload: ApplicantLoginPayload): Promise<AuthResult> {
   const url = `${API_BASE}/api/auth/login`;
+  const emailKey = payload.email.toLowerCase().trim();
+
+  // ── Try live backend first ────────────────────────────────────────────────
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(4000),
     });
     const ct = res.headers.get('content-type') || '';
     if (res.ok && ct.includes('application/json')) {
@@ -401,25 +462,41 @@ export async function loginApplicant(payload: ApplicantLoginPayload): Promise<Au
       saveCachedApplicant(data.applicant);
       return data;
     }
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData?.detail || 'Invalid email or password');
-  } catch (err: any) {
-    if (err.message && !err.message.includes('fetch') && !err.message.includes('network')) {
-      throw err;
-    }
-    // Check local cached applicants
-    const cached = getCachedApplicants();
-    const found = cached.find(a => a.email.toLowerCase() === payload.email.toLowerCase().trim());
-    if (found) {
-      return {
-        status: 'success',
-        message: `Welcome back, ${found.name}!`,
-        token: `aicte_token_${Date.now()}`,
-        applicant: found,
-      };
-    }
-    throw new Error('Could not connect to authentication server. Please check your credentials or register as a new applicant.');
+    // Server reachable but returned an error (e.g. 401) — fall through to offline checks
+  } catch {
+    // Network / CORS / timeout — fall through to offline checks
   }
+
+  // ── Offline fallback 1: built-in demo accounts ───────────────────────────
+  const demoProfile = findDemoApplicant(emailKey, payload.password);
+  if (demoProfile) {
+    saveCachedApplicant(demoProfile);
+    return {
+      status: 'success',
+      message: `Welcome back, ${demoProfile.name}!`,
+      token: `aicte_token_demo_${Date.now()}`,
+      applicant: demoProfile,
+    };
+  }
+
+  // ── Offline fallback 2: previously registered applicants in localStorage ──
+  const cached = getCachedApplicants();
+  const found = cached.find(a => a.email.toLowerCase() === emailKey);
+  if (found) {
+    return {
+      status: 'success',
+      message: `Welcome back, ${found.name}!`,
+      token: `aicte_token_${Date.now()}`,
+      applicant: found,
+    };
+  }
+
+  // ── No match anywhere ─────────────────────────────────────────────────────
+  // If the email exists as a demo account but password was wrong, give a clear hint
+  if (DEMO_APPLICANTS[emailKey]) {
+    throw new Error('Incorrect password for this demo account. Try Admin@123.');
+  }
+  throw new Error('Invalid email or password. Try the demo credentials (ramesh@nandi.edu.in / Admin@123) or register a new account.');
 }
 
 export async function fetchApplicants(): Promise<ApplicantProfile[]> {
