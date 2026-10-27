@@ -191,6 +191,7 @@ interface AppContextValue {
   currentUser: ApplicantProfile | null;
   setCurrentUser: (user: ApplicantProfile | null) => void;
   logoutUser: () => void;
+  checkBackendConnection: () => Promise<boolean>;
 }
 
 
@@ -701,19 +702,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActionLoading('sweep');
     try {
       if (isLive) {
-        const res = await api.runAlertSweep(roleName);
-        await loadRef.current();
-        showToast('Alert Sweep Completed', `${res.alerts_count || 0} notifications dispatched`, 'info');
-      } else {
-        const urgent = urgencyItems.filter(x => x.d <= 15);
-        const newLogs = urgent.map(x => ({
-          t:   new Date().toLocaleString(),
-          who: roleName,
-          x:   `${alertLevel(x.d)} sent: ${x.kind} · ${x.inst}`,
-        }));
-        setLOG(prev => [...newLogs, ...prev]);
-        showToast('Alert Sweep Completed', `${urgent.length} notifications processed`, 'info');
+        try {
+          const res = await api.runAlertSweep(roleName);
+          await loadRef.current();
+          showToast('Alert Sweep Completed', `${res.alerts_count || 0} notifications dispatched`, 'info');
+          return;
+        } catch (serverErr) {
+          console.warn('Live backend sweep failed, using client sweep:', serverErr);
+        }
       }
+      const urgent = urgencyItems.filter(x => x.d <= 15);
+      const newLogs = urgent.map(x => ({
+        t:   new Date().toLocaleString(),
+        who: roleName,
+        x:   `${alertLevel(x.d)} sent: ${x.kind} · ${x.inst}`,
+      }));
+      setLOG(prev => [...newLogs, ...prev]);
+      showToast('Alert Sweep Completed', `${urgent.length} notifications processed`, 'info');
     } catch (err: any) {
       showToast('Sweep Failed', err?.message || 'Error running alert sweep', 'error');
     } finally {
@@ -724,12 +729,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const handleSaveAphRules = useCallback(async (rules: AphRulesConfig) => {
     try {
       if (isLive) {
-        const updated = await api.updateAphRules(rules, roleName);
-        setAphRules(updated);
-        await loadRef.current();
-      } else {
-        setAphRules(rules);
+        try {
+          const updated = await api.updateAphRules(rules, roleName);
+          setAphRules(updated);
+          await loadRef.current();
+          showToast('APH Rules Saved', `Scrutiny ${rules.Scrutiny}d · EVC ${rules.EVC}d · SAC/SHC ${rules['SAC/SHC']}d`, 'success');
+          return;
+        } catch (serverErr) {
+          console.warn('Backend rules update failed, saving locally:', serverErr);
+        }
       }
+      setAphRules(rules);
       showToast('APH Rules Saved', `Scrutiny ${rules.Scrutiny}d · EVC ${rules.EVC}d · SAC/SHC ${rules['SAC/SHC']}d`, 'success');
     } catch (err: any) {
       showToast('Save Failed', err?.message || 'Could not update APH rules', 'error');
@@ -741,14 +751,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActionLoading('export-csv');
     try {
       const region = role !== 'Bureau' && role !== 'Committee' ? role : undefined;
-      await api.downloadPendencyReportCsv(role, region);
-      showToast('Report Exported', 'Pendency CSV downloaded', 'success');
+      if (isLive) {
+        // Try backend-generated CSV first (includes server-side data)
+        try {
+          await api.downloadPendencyReportCsv(role, region);
+          showToast('Report Exported', 'Pendency CSV downloaded', 'success');
+          return;
+        } catch {
+          // fall through to client-side generation
+        }
+      }
+      // Client-side CSV generation (always works in Demo Mode)
+      const rows: string[] = [
+        'Application ID,Institution,Region,Route,Stage,Age (days),EVC Days,Status',
+        ...apps.map(a => [
+          a.id,
+          `"${a.inst}"`,
+          a.reg,
+          a.rt,
+          `"${getStage(a) || 'N/A'}"`,
+          a.age,
+          a.evc,
+          'Active',
+        ].join(',')),
+      ];
+      const csvContent = rows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `aicte_pendency_report_${new Date().toISOString().slice(0, 10)}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      showToast('Report Exported', `${apps.length} applications exported as CSV`, 'success');
     } catch (err: any) {
-      showToast('Export Failed', err?.message || 'Could not download CSV', 'error');
+      showToast('Export Failed', err?.message || 'Could not generate CSV report', 'error');
     } finally {
       setActionLoading(null);
     }
-  }, [role, showToast]);
+  }, [role, isLive, apps, getStage, showToast]);
 
   const handleRescheduleEVC = useCallback(async (appId: string, newDays: number) => {
     const target = A.find(x => x.id === appId);
@@ -951,6 +992,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     const interval = setInterval(async () => {
       if (!active) return;
+      if (!isLive) {
+        // In demo mode: quietly probe health without spamming live status
+        try {
+          const healthy = await api.checkHealth();
+          if (active && healthy) {
+            setIsLive(true);
+            await loadRef.current();
+          }
+        } catch {
+          /* stay in demo mode quietly */
+        }
+        return;
+      }
       try {
         const status = await api.getLiveStatus();
         if (!active) return;
@@ -983,7 +1037,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       active = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [isLive]);
 
   // ── Periodic Simulation Timer (runs when simulationActive is enabled) ──────
   useEffect(() => {
@@ -1050,6 +1104,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     showToast('Demo Data Reset', 'All records and timelines restored to default', 'info');
   }, [showToast]);
 
+  const checkBackendConnection = useCallback(async () => {
+    setActionLoading('check-health');
+    try {
+      const healthy = await api.checkHealth();
+      setIsLive(healthy);
+      if (healthy) {
+        await loadRef.current();
+        showToast('Connected to Live Backend', 'Real-time FastAPI synchronization active', 'success');
+      } else {
+        showToast('Demo Mode Active', 'Backend is offline. Running in Demo Mode with statutory sample data.', 'info');
+      }
+      return healthy;
+    } catch {
+      setIsLive(false);
+      showToast('Demo Mode Active', 'Backend is offline. Running in Demo Mode with statutory sample data.', 'info');
+      return false;
+    } finally {
+      setActionLoading(null);
+    }
+  }, [showToast]);
+
   const value: AppContextValue = {
     theme, setTheme, toggleTheme,
     role, setRole,
@@ -1079,6 +1154,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     pendingAppsFilter, setPendingAppsFilter,
     pendingDrawerAppId, setPendingDrawerAppId,
     currentUser, setCurrentUser, logoutUser,
+    checkBackendConnection,
   };
 
 

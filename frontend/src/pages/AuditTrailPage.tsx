@@ -53,13 +53,12 @@ function getActorBadge(who: string) {
 }
 
 export function AuditTrailPage() {
-  const { LOG, handleExportCsv, actionLoading } = useApp();
+  const { LOG, showToast } = useApp();
   const [search, setSearch] = useState('');
   const [actorFilter, setActorFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<EventCategory>('all');
   const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table');
-
-  const isExporting = actionLoading === 'export-csv';
+  const [isExporting, setIsExporting] = useState(false);
 
   // Distinct actors
   const actors = useMemo(() => {
@@ -111,6 +110,32 @@ export function AuditTrailPage() {
     return list;
   }, [LOG, search, actorFilter, categoryFilter]);
 
+  const handleExportAuditLogs = () => {
+    setIsExporting(true);
+    try {
+      const headers = ['Timestamp', 'Actor', 'Event Description', 'Category'];
+      const rows = filtered.map(l => [
+        `"${l.t}"`,
+        `"${l.who}"`,
+        `"${l.x.replace(/"/g, '""')}"`,
+        `"${getEventCategory(l.x)}"`,
+      ]);
+      const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `aicte_audit_trail_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Audit Trail Exported', `${filtered.length} log events downloaded as CSV`, 'success');
+    } catch (err: any) {
+      showToast('Export Failed', err?.message || 'Could not export audit log', 'error');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="page-content">
       {/* Header */}
@@ -142,8 +167,8 @@ export function AuditTrailPage() {
 
           <button
             className="btn btn-secondary btn-sm"
-            onClick={handleExportCsv}
-            disabled={isExporting}
+            onClick={handleExportAuditLogs}
+            disabled={isExporting || filtered.length === 0}
             aria-label="Export audit trail as CSV"
           >
             <Download size={13} aria-hidden="true" />

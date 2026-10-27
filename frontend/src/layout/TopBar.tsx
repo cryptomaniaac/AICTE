@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Bell, Menu, Search, Command, Play, Pause, Sparkles, RefreshCw, X, User, LogOut, ExternalLink } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import {
+  Bell, Menu, Search, Command, Play, Pause, Sparkles, RefreshCw, X, User,
+  LogOut, ExternalLink, Server, ArrowRight, CheckCircle2,
+} from 'lucide-react';
+import { useApp, alertLevel } from '../context/AppContext';
 import { navigateTo } from '../router';
 import api from '../api';
 
@@ -58,13 +61,21 @@ export function TopBar({
     resetDemoData,
     searchQuery, setSearchQuery,
     currentUser, logoutUser,
+    urgencyItems,
+    latestLiveEvent,
+    handleSweep,
+    checkBackendConnection,
+    setPendingDrawerAppId,
+    actionLoading,
   } = useApp();
 
   const searchRef = useRef<HTMLInputElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const [showLiveMenu, setShowLiveMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotificationMenu, setShowNotificationMenu] = useState(false);
 
   // "Updated Xs ago" ticker connected to lastUpdatedTimestamp
   const [updatedSec, setUpdatedSec] = useState(0);
@@ -104,9 +115,9 @@ export function TopBar({
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // Close live popover and user dropdown on outside click
+  // Close live popover, notification menu, and user dropdown on outside click
   useEffect(() => {
-    if (!showLiveMenu && !showUserMenu) return;
+    if (!showLiveMenu && !showUserMenu && !showNotificationMenu) return;
     const clickOutside = (e: MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         setShowLiveMenu(false);
@@ -114,14 +125,17 @@ export function TopBar({
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setShowUserMenu(false);
       }
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setShowNotificationMenu(false);
+      }
     };
     document.addEventListener('mousedown', clickOutside);
     return () => document.removeEventListener('mousedown', clickOutside);
-  }, [showLiveMenu, showUserMenu]);
+  }, [showLiveMenu, showUserMenu, showNotificationMenu]);
 
   const handleBellClick = () => {
     clearBellCount();
-    setPage('es');
+    setShowNotificationMenu(v => !v);
   };
 
 
@@ -194,19 +208,19 @@ export function TopBar({
             <button
               className={`mode-pill ${isLive ? 'live' : 'mock'}`}
               onClick={() => setShowLiveMenu(v => !v)}
-              title="Click to view live sync options"
+              title={isLive ? 'Connected to live backend — click for sync options' : 'Demo Mode — using realistic sample data. Click for details.'}
               style={{ cursor: 'pointer', border: 'none', background: 'none' }}
               aria-expanded={showLiveMenu}
               aria-haspopup="dialog"
             >
               <span className={`mode-pill-dot ${isLive || simulationActive ? 'pulse' : ''}`} aria-hidden="true" />
-              {isLive ? `Live · ${updatedLabel}` : `Mock · ${updatedLabel}`}
+              {isLive ? `Live · ${updatedLabel}` : simulationActive ? `Demo · Simulating` : `Demo Mode`}
             </button>
 
             {showLiveMenu && (
               <div className="live-popover" role="dialog" aria-label="Live sync settings">
                 <div className="live-popover-header">
-                  <span>Data Synchronization</span>
+                  <span>Data Synchronization & Status</span>
                   <button
                     className="icon-btn"
                     style={{ padding: 2 }}
@@ -221,15 +235,56 @@ export function TopBar({
                     className={`mode-pill-dot ${isLive || simulationActive ? 'pulse' : ''}`}
                     aria-hidden="true"
                   />
-                  <span>
-                    {isLive
-                      ? 'Connected to FastAPI backend'
-                      : simulationActive
-                      ? 'Mock mode active (auto-simulating events)'
-                      : 'Mock simulation paused'}
-                  </span>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--text)' }}>
+                      {isLive ? '✅ Live FastAPI Backend Connected' : '🎭 Demo Mode Active'}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>
+                      {isLive
+                        ? 'Connected to live AICTE FastAPI backend with database persistence.'
+                        : 'Running with realistic statutory AICTE sample records (no backend needed).'}
+                    </div>
+                  </div>
                 </div>
+
+                {/* When will it be Live guide */}
+                {!isLive && (
+                  <div style={{
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    padding: '9px 11px',
+                    fontSize: 11,
+                    color: 'var(--text-2)',
+                    marginBottom: 10,
+                    lineHeight: 1.45,
+                  }}>
+                    <div style={{ fontWeight: 700, color: 'var(--primary)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Server size={12} /> When will it be Live?
+                    </div>
+                    <div>The dashboard automatically goes <strong>Live</strong> as soon as the FastAPI backend starts responding:</div>
+                    <div style={{ margin: '6px 0', padding: '4px 6px', background: 'var(--surface)', borderRadius: 4, border: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>Local Terminal:</div>
+                      <code style={{ fontSize: 10.5, color: 'var(--text)' }}>cd backend && python -m uvicorn main:app --reload</code>
+                    </div>
+                    <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>
+                      For Vercel/Cloud: deploy the backend and set <code>VITE_API_URL</code> in environment variables.
+                    </div>
+                  </div>
+                )}
+
                 <div className="live-popover-actions">
+                  <button
+                    className="btn btn-primary btn-xs"
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                    onClick={async () => {
+                      await checkBackendConnection();
+                    }}
+                    disabled={actionLoading === 'check-health'}
+                  >
+                    <RefreshCw size={12} className={actionLoading === 'check-health' ? 'spin' : ''} />
+                    {actionLoading === 'check-health' ? 'Connecting to Backend…' : isLive ? 'Re-sync Live Backend' : 'Check Backend Connection Now'}
+                  </button>
                   <button
                     className="btn btn-secondary btn-xs"
                     style={{ width: '100%', justifyContent: 'flex-start' }}
@@ -336,38 +391,169 @@ export function TopBar({
             </button>
           )}
 
-          {/* Bell with unread badge & pulse */}
-          <button
-            className={`topbar-bell ${bellUnreadCount > 0 ? 'shake' : ''}`}
-            onClick={handleBellClick}
-            aria-label={bellUnreadCount > 0 ? `${bellUnreadCount} unread alerts` : 'Alerts'}
-            title="Alerts"
-            style={{ position: 'relative' }}
-          >
-            <Bell size={17} aria-hidden="true" />
-            {bellUnreadCount > 0 && (
-              <span
-                style={{
-                  position: 'absolute',
-                  top: -4,
-                  right: -4,
-                  background: 'var(--red)',
-                  color: 'white',
-                  borderRadius: '50%',
-                  minWidth: 16,
-                  height: 16,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '0 2px',
-                }}
-              >
-                {bellUnreadCount > 9 ? '9+' : bellUnreadCount}
-              </span>
+          {/* Bell with unread badge & notification popover */}
+          <div style={{ position: 'relative' }} ref={bellRef}>
+            <button
+              className={`topbar-bell ${bellUnreadCount > 0 ? 'shake' : ''}`}
+              onClick={handleBellClick}
+              aria-label={bellUnreadCount > 0 ? `${bellUnreadCount} unread alerts` : 'Statutory Alerts'}
+              title="Statutory Alerts & Notifications"
+              aria-expanded={showNotificationMenu}
+              aria-haspopup="dialog"
+              style={{ position: 'relative' }}
+            >
+              <Bell size={17} aria-hidden="true" />
+              {bellUnreadCount > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -4,
+                    background: 'var(--red)',
+                    color: 'white',
+                    borderRadius: '50%',
+                    minWidth: 16,
+                    height: 16,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0 2px',
+                  }}
+                >
+                  {bellUnreadCount > 9 ? '9+' : bellUnreadCount}
+                </span>
+              )}
+            </button>
+
+            {showNotificationMenu && (
+              <div className="notification-popover" role="dialog" aria-label="Statutory Notifications">
+                <div className="notification-popover-header">
+                  <div className="notification-popover-title">
+                    <Bell size={14} style={{ color: 'var(--primary)' }} />
+                    <span>Statutory Notifications</span>
+                    {urgencyItems.length > 0 && (
+                      <span className="chip chip-grey" style={{ fontSize: 10, padding: '1px 6px' }}>
+                        {urgencyItems.length} active
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <button
+                      className="btn btn-ghost btn-xs"
+                      onClick={() => clearBellCount()}
+                      style={{ fontSize: 11 }}
+                      title="Clear badge"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      className="icon-btn"
+                      style={{ padding: 2 }}
+                      onClick={() => setShowNotificationMenu(false)}
+                      aria-label="Close notifications"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="notification-popover-list">
+                  {/* Latest live event if present */}
+                  {latestLiveEvent && (
+                    <div
+                      className="notif-item event"
+                      onClick={() => {
+                        if (latestLiveEvent.appId) {
+                          setPendingDrawerAppId(latestLiveEvent.appId);
+                          setPage('ap');
+                        }
+                        setShowNotificationMenu(false);
+                      }}
+                    >
+                      <div className="notif-item-body">
+                        <div className="notif-item-header">
+                          <span className="chip chip-blue" style={{ fontSize: 10 }}>Live Event</span>
+                          <span style={{ fontSize: 10, color: 'var(--muted)' }}>{latestLiveEvent.timestamp}</span>
+                        </div>
+                        <div className="notif-item-title">{latestLiveEvent.title}</div>
+                        <div className="notif-item-desc">{latestLiveEvent.desc}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* List top urgent items */}
+                  {urgencyItems.slice(0, 6).map((item, idx) => {
+                    const level = alertLevel(item.d);
+                    const isOverdue = item.d <= 0;
+                    const levelClass = level.toLowerCase();
+                    return (
+                      <div
+                        key={`notif-${item.appId || item.recordId || idx}`}
+                        className={`notif-item ${levelClass}`}
+                        onClick={() => {
+                          if (item.appId) {
+                            setPendingDrawerAppId(item.appId);
+                            setPage('ap');
+                          } else {
+                            setPage('ap');
+                            setSearchQuery(item.inst);
+                          }
+                          setShowNotificationMenu(false);
+                        }}
+                      >
+                        <div className="notif-item-body">
+                          <div className="notif-item-header">
+                            <span className={`chip chip-${levelClass}`} style={{ fontSize: 10, fontWeight: 700 }}>
+                              {level === 'L3' ? 'L3 Critical' : level === 'L2' ? 'L2 Overdue' : 'L1 Reminder'} · {item.kind}
+                            </span>
+                            <span style={{ fontSize: 10.5, fontWeight: 600, color: isOverdue ? 'var(--red)' : 'var(--amber)' }}>
+                              {isOverdue ? `${Math.abs(item.d)}d overdue` : `${item.d}d left`}
+                            </span>
+                          </div>
+                          <div className="notif-item-title">{item.inst}</div>
+                          <div className="notif-item-desc">
+                            {item.reg} Region · {item.stage || item.kind} statutory compliance checkpoint
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {urgencyItems.length === 0 && !latestLiveEvent && (
+                    <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--muted)' }}>
+                      <CheckCircle2 size={28} style={{ color: 'var(--green)', margin: '0 auto 8px', display: 'block' }} />
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>All Deadlines Compliant</div>
+                      <div style={{ fontSize: 11, marginTop: 4 }}>No overdue items or SLA breaches detected</div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="notification-popover-footer">
+                  <button
+                    className="btn btn-secondary btn-xs"
+                    onClick={async () => {
+                      await handleSweep();
+                    }}
+                    disabled={actionLoading === 'sweep'}
+                  >
+                    <Play size={11} /> {actionLoading === 'sweep' ? 'Sweeping…' : 'Run Alert Sweep'}
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-xs"
+                    onClick={() => {
+                      setPage('es');
+                      setShowNotificationMenu(false);
+                    }}
+                    style={{ fontWeight: 600, color: 'var(--primary)', gap: 4 }}
+                  >
+                    Escalations Ladder <ArrowRight size={11} />
+                  </button>
+                </div>
+              </div>
             )}
-          </button>
+          </div>
 
           {/* User Account Avatar & Popover */}
           <div style={{ position: 'relative' }} ref={userMenuRef}>

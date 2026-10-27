@@ -22,18 +22,21 @@ export async function checkBackendHealth(): Promise<boolean> {
     }
     return false;
   } catch {
-    // If proxied path failed, try direct backend port as fallback
-    try {
-      const direct = await fetch('http://127.0.0.1:8000/api/health', { signal: AbortSignal.timeout(2000) });
-      const dirType = direct.headers.get('content-type') || '';
-      if (direct.ok && dirType.includes('application/json')) {
-        const data = await direct.json();
-        return data?.status === 'healthy' || data?.status === 'ok';
+    // If proxied path failed, try direct backend port as fallback ONLY when running on http/localhost
+    if (typeof window !== 'undefined' && window.location.protocol === 'http:') {
+      try {
+        const direct = await fetch('http://127.0.0.1:8000/api/health', { signal: AbortSignal.timeout(2000) });
+        const dirType = direct.headers.get('content-type') || '';
+        if (direct.ok && dirType.includes('application/json')) {
+          const data = await direct.json();
+          return data?.status === 'healthy' || data?.status === 'ok';
+        }
+        return false;
+      } catch {
+        return false;
       }
-      return false;
-    } catch {
-      return false;
     }
+    return false;
   }
 }
 export const checkHealth = checkBackendHealth;
