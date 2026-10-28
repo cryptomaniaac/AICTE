@@ -553,8 +553,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActionLoading(`adv-${appId}`);
     const target = A.find(x => x.id === appId);
     const prevStage = target ? (getStage(target) ?? 'Stage') : 'Stage';
-    const oldIndex = target ? target.i : 0;
-    const oldAge = target ? target.age : 0;
 
     // 1. Optimistic immediate local update
     if (target) {
@@ -569,17 +567,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     try {
       if (isLive) {
-        await api.advanceApplication(appId, roleName);
-        await loadRef.current();
+        try {
+          await api.advanceApplication(appId, roleName);
+          await loadRef.current();
+        } catch (serverErr) {
+          console.warn('Backend advance sync failed, maintaining optimistic client state:', serverErr);
+        }
       }
-    } catch (err: any) {
-      // Rollback on failure
-      if (target) {
-        target.i = oldIndex;
-        target.age = oldAge;
-        setA([...A]);
-      }
-      showToast('Advance Failed', err?.message || 'Action failed on server', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -588,8 +582,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const handleReturn = useCallback(async (appId: string, reason: string) => {
     setActionLoading(`ret-${appId}`);
     const o = A.find(x => x.id === appId);
-    const oldIndex = o ? o.i : 0;
-    const oldAge = o ? o.age : 0;
 
     // 1. Optimistic immediate local update
     if (o) {
@@ -603,17 +595,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     try {
       if (isLive) {
-        await api.revertApplication(appId, reason, roleName);
-        await loadRef.current();
+        try {
+          await api.revertApplication(appId, reason, roleName);
+          await loadRef.current();
+        } catch (serverErr) {
+          console.warn('Backend revert sync failed, maintaining optimistic client state:', serverErr);
+        }
       }
-    } catch (err: any) {
-      // Rollback on failure
-      if (o) {
-        o.i = oldIndex;
-        o.age = oldAge;
-        setA([...A]);
-      }
-      showToast('Return Failed', err?.message || 'Action failed on server', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -623,7 +611,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActionLoading(`un-${idx}`);
     const isUpload = uItem.s === 0;
     const o = U[idx];
-    const prevStatus = o ? o.s : 0;
 
     // 1. Optimistic immediate local update
     if (o) {
@@ -640,17 +627,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     try {
       if (isLive && uItem.id) {
-        if (isUpload) await api.uploadUndertaking(uItem.id, roleName);
-        else          await api.verifyUndertaking(uItem.id, roleName);
-        await loadRef.current();
+        try {
+          if (isUpload) await api.uploadUndertaking(uItem.id, roleName);
+          else          await api.verifyUndertaking(uItem.id, roleName);
+          await loadRef.current();
+        } catch (serverErr) {
+          console.warn('Backend undertaking sync failed, maintaining optimistic client state:', serverErr);
+        }
       }
-    } catch (err: any) {
-      // Rollback on failure
-      if (o) {
-        o.s = prevStatus;
-        setU([...U]);
-      }
-      showToast('Action Failed', err?.message || 'Could not process undertaking on server', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -660,8 +644,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActionLoading(`dc-${idx}`);
     const isUpload = dItem.s === 0;
     const o = D[idx];
-    const prevStatus = o ? o.s : 0;
-    const prevDays = o ? o.d : 0;
 
     // 1. Optimistic immediate local update
     if (o) {
@@ -681,18 +663,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     try {
       if (isLive && dItem.id) {
-        if (isUpload) await api.uploadDocument(dItem.id, roleName);
-        else          await api.verifyDocument(dItem.id, roleName);
-        await loadRef.current();
+        try {
+          if (isUpload) await api.uploadDocument(dItem.id, roleName);
+          else          await api.verifyDocument(dItem.id, roleName);
+          await loadRef.current();
+        } catch (serverErr) {
+          console.warn('Backend document sync failed, maintaining optimistic client state:', serverErr);
+        }
       }
-    } catch (err: any) {
-      // Rollback on failure
-      if (o) {
-        o.s = prevStatus;
-        o.d = prevDays;
-        setD([...D]);
-      }
-      showToast('Action Failed', err?.message || 'Could not process document on server', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -826,10 +804,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await api.rescheduleEVC(appId, newDays, roleName);
         await loadRef.current();
       } catch (err: any) {
-        // Rollback on failure
-        target.evc = oldDays;
-        setA([...A]);
-        showToast('Reschedule Failed', err?.message || 'Server error updating EVC schedule', 'error');
+        console.warn('Backend reschedule sync failed, maintaining optimistic client state:', err);
       }
     }
   }, [A, isLive, roleName, showToast]);
